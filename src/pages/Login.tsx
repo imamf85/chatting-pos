@@ -1,9 +1,10 @@
-import { useState, type FormEvent } from 'react';
-import { Navigate } from 'react-router-dom';
+import { useState, useEffect, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
 export default function Login() {
   const { signIn, user, loading: authLoading, isDemoMode } = useAuth();
+  const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -11,12 +12,14 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
 
   // Redirect if already logged in
-  if (user) {
-    return <Navigate to="/order" replace />;
-  }
+  useEffect(() => {
+    if (user && !authLoading) {
+      navigate('/order', { replace: true });
+    }
+  }, [user, authLoading, navigate]);
 
-  // Show loading while checking auth
-  if (authLoading) {
+  // Show loading while checking auth or redirecting
+  if (authLoading || user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-100 via-orange-50 to-white">
         <div className="flex flex-col items-center gap-3">
