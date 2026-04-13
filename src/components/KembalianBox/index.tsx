@@ -57,8 +57,8 @@ export default function KembalianBox({ total, onPaymentComplete }: KembalianBoxP
   const getStatusStyle = () => {
     if (typeof bayar !== 'number') {
       return {
-        bg: 'bg-gray-100',
-        text: 'text-gray-500',
+        bg: 'bg-gray-100 dark:bg-gray-700',
+        text: 'text-gray-500 dark:text-gray-400',
         message: 'Pilih nominal pembayaran',
       };
     }
@@ -86,11 +86,11 @@ export default function KembalianBox({ total, onPaymentComplete }: KembalianBoxP
   const status = getStatusStyle();
 
   return (
-    <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
+    <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl overflow-hidden">
       {/* Header */}
-      <div className="bg-gray-50 px-5 py-4 border-b border-gray-100">
+      <div className="bg-gray-50 dark:bg-gray-900/50 px-5 py-4 border-b border-gray-100 dark:border-gray-700">
         <div className="flex justify-between items-center">
-          <span className="text-gray-500 font-medium">Total Bayar</span>
+          <span className="text-gray-500 dark:text-gray-400 font-medium">Total Bayar</span>
           <span className="text-2xl font-bold text-orange-500">
             {formatRupiah(total)}
           </span>
@@ -99,7 +99,7 @@ export default function KembalianBox({ total, onPaymentComplete }: KembalianBoxP
 
       {/* Quick Nominals */}
       <div className="p-4">
-        <div className="text-sm text-gray-500 mb-3 font-medium">Pilih nominal:</div>
+        <div className="text-sm text-gray-500 dark:text-gray-400 mb-3 font-medium">Pilih nominal:</div>
         <div className="grid grid-cols-3 gap-2">
           {relevantNominals.map((nominal) => (
             <button
@@ -108,7 +108,7 @@ export default function KembalianBox({ total, onPaymentComplete }: KembalianBoxP
               className={`py-4 px-2 rounded-2xl font-semibold text-base transition-all active:scale-95 ${
                 bayar === nominal
                   ? 'bg-orange-500 text-white shadow-lg'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
               }`}
             >
               {formatShort(nominal)}
@@ -124,9 +124,9 @@ export default function KembalianBox({ total, onPaymentComplete }: KembalianBoxP
             value={customInput}
             onChange={(e) => handleCustomChange(e.target.value)}
             placeholder="Atau ketik nominal lain (ribu)..."
-            className="w-full px-4 py-4 bg-gray-100 border-0 rounded-2xl
-                       focus:outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white
-                       text-base font-medium placeholder-gray-400 transition-all"
+            className="w-full px-4 py-4 bg-gray-100 dark:bg-gray-700 border-0 rounded-2xl
+                       focus:outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white dark:focus:bg-gray-600
+                       text-base font-medium text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-all"
           />
         </div>
       </div>
@@ -140,13 +140,13 @@ export default function KembalianBox({ total, onPaymentComplete }: KembalianBoxP
 
       {/* Confirm Button */}
       {typeof bayar === 'number' && bayar >= total && (
-        <div className="p-4 bg-gray-50">
+        <div className="p-4 bg-gray-50 dark:bg-gray-900/50">
           <button
             onClick={handleConfirm}
             className="w-full py-4 px-4 bg-green-500 text-white font-bold text-lg
                        rounded-2xl hover:bg-green-600 transition-all active:scale-95 shadow-lg"
           >
-            ✓ Selesai
+            Selesai
           </button>
         </div>
       )}

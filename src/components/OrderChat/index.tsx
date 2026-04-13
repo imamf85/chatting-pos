@@ -1,14 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { parseOrder, applyMissingVarian } from '../../lib/parser';
 import { parseWithAI, convertAIResultToItems, isAIEnabled } from '../../lib/aiParser';
-import { VARIAN_OPTIONS, VARIAN_LABELS } from '../../lib/menu';
-import type { ParsedItem, Varian } from '../../types';
+import { VARIAN_OPTIONS, VARIAN_LABELS, UKURAN_OPTIONS, UKURAN_LABELS } from '../../lib/menu';
+import type { ParsedItem, Varian, Ukuran } from '../../types';
 
 interface OrderChatProps {
   onOrderParsed: (items: ParsedItem[], namaCustomer: string) => void;
 }
 
-type ChatState = 'idle' | 'waitingClarification' | 'parsing';
+type ChatState = 'idle' | 'waitingVarian' | 'waitingUkuran' | 'parsing';
 
 interface Message {
   id: string;
@@ -58,13 +58,44 @@ export default function OrderChat({ onOrderParsed }: OrderChatProps) {
     addMessage('user', text);
     setInput('');
 
-    if (chatState === 'waitingClarification') {
-      handleClarificationResponse(text);
+    if (chatState === 'waitingVarian') {
+      handleVarianResponse(text);
+    } else if (chatState === 'waitingUkuran') {
+      handleUkuranResponse(text);
     } else {
       handleNewOrder(text);
     }
 
     inputRef.current?.focus();
+  };
+
+  // Check what clarification is needed and show appropriate message
+  const checkAndAskClarification = (items: ParsedItem[], namaCustomer: string) => {
+    const hasMissingVarian = items.some((i) => !i.varian);
+    const hasMissingUkuran = items.some((i) => i.missing?.includes('ukuran'));
+
+    if (hasMissingVarian) {
+      const missingCount = items.filter((i) => !i.varian).length;
+      setPendingItems(items);
+      setPendingNama(namaCustomer);
+      setChatState('waitingVarian');
+      addMessage(
+        'system',
+        `Ada ${missingCount} item yang variannya belum jelas 🧐\n\nMau pakai varian apa?\n• Original\n• Signature\n• Cheesy`
+      );
+    } else if (hasMissingUkuran) {
+      const missingCount = items.filter((i) => i.missing?.includes('ukuran')).length;
+      setPendingItems(items);
+      setPendingNama(namaCustomer);
+      setChatState('waitingUkuran');
+      addMessage(
+        'system',
+        `Ada ${missingCount} item yang ukurannya belum dipilih 📏\n\nMau pakai ukuran apa?\n• Small\n• Reguler\n• Jumbo`
+      );
+    } else {
+      setChatState('idle');
+      onOrderParsed(items, namaCustomer);
+    }
   };
 
   const handleNewOrder = async (text: string) => {
@@ -82,21 +113,7 @@ export default function OrderChat({ onOrderParsed }: OrderChatProps) {
           // Remove the "processing" message
           setMessages((prev) => prev.slice(0, -1));
 
-          const hasMissingVarian = items.some((i) => !i.varian);
-
-          if (hasMissingVarian) {
-            const missingCount = items.filter((i) => !i.varian).length;
-            setPendingItems(items);
-            setPendingNama(namaCustomer);
-            setChatState('waitingClarification');
-            addMessage(
-              'system',
-              `Ada ${missingCount} item yang variannya belum jelas 🧐\n\nMau pakai varian apa?\n• Original\n• Signature\n• Cheesy`
-            );
-          } else {
-            setChatState('idle');
-            onOrderParsed(items, namaCustomer);
-          }
+          checkAndAskClarification(items, namaCustomer);
           return;
         }
       } catch (error) {
@@ -118,21 +135,10 @@ export default function OrderChat({ onOrderParsed }: OrderChatProps) {
       return;
     }
 
-    if (result.hasMissingVarian) {
-      const missingCount = result.items.filter((i) => !i.varian).length;
-      setPendingItems(result.items);
-      setPendingNama(result.namaCustomer);
-      setChatState('waitingClarification');
-      addMessage(
-        'system',
-        `Ada ${missingCount} item yang variannya belum jelas 🧐\n\nMau pakai varian apa?\n• Original\n• Signature\n• Cheesy`
-      );
-    } else {
-      onOrderParsed(result.items, result.namaCustomer);
-    }
+    checkAndAskClarification(result.items, result.namaCustomer);
   };
 
-  const handleClarificationResponse = (text: string) => {
+  const handleVarianResponse = (text: string) => {
     const normalized = text.toLowerCase().trim();
 
     let selectedVarian: Varian | null = null;
@@ -154,23 +160,75 @@ export default function OrderChat({ onOrderParsed }: OrderChatProps) {
     }
 
     const updatedItems = applyMissingVarian(pendingItems, selectedVarian);
+    // Check if ukuran also needs clarification
+    checkAndAskClarification(updatedItems, pendingNama);
+  };
+
+  const handleUkuranResponse = (text: string) => {
+    const normalized = text.toLowerCase().trim();
+
+    let selectedUkuran: Ukuran | null = null;
+
+    if (normalized.includes('small') || normalized.includes('kecil')) {
+      selectedUkuran = 'small';
+    } else if (normalized.includes('reg') || normalized.includes('reguler')) {
+      selectedUkuran = 'reguler';
+    } else if (normalized.includes('jumbo') || normalized.includes('besar') || normalized.includes('gede')) {
+      selectedUkuran = 'jumbo';
+    }
+
+    if (!selectedUkuran) {
+      addMessage(
+        'system',
+        'Pilih salah satu ukuran ya:\n• Small\n• Reguler\n• Jumbo'
+      );
+      return;
+    }
+
+    // Apply ukuran to items missing it
+    const updatedItems = pendingItems.map((item) => {
+      if (item.missing?.includes('ukuran')) {
+        return {
+          ...item,
+          ukuran: selectedUkuran!,
+          missing: item.missing.filter((m) => m !== 'ukuran'),
+        };
+      }
+      return item;
+    });
+
     setChatState('idle');
     setPendingItems([]);
     onOrderParsed(updatedItems, pendingNama);
     setPendingNama('');
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    }
+  // Enter = new line only, tidak submit
+  // Submit hanya via tombol send
+  const handleKeyDown = (_e: React.KeyboardEvent) => {
+    // Allow default behavior (Enter = new line)
   };
 
-  // Quick varian buttons when waiting for clarification
+  // Quick varian buttons
   const handleQuickVarian = (varian: Varian) => {
     addMessage('user', VARIAN_LABELS[varian]);
     const updatedItems = applyMissingVarian(pendingItems, varian);
+    checkAndAskClarification(updatedItems, pendingNama);
+  };
+
+  // Quick ukuran buttons
+  const handleQuickUkuran = (ukuran: Ukuran) => {
+    addMessage('user', UKURAN_LABELS[ukuran]);
+    const updatedItems = pendingItems.map((item) => {
+      if (item.missing?.includes('ukuran')) {
+        return {
+          ...item,
+          ukuran,
+          missing: item.missing.filter((m) => m !== 'ukuran'),
+        };
+      }
+      return item;
+    });
     setChatState('idle');
     setPendingItems([]);
     onOrderParsed(updatedItems, pendingNama);
@@ -178,7 +236,7 @@ export default function OrderChat({ onOrderParsed }: OrderChatProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-b from-orange-50 to-white">
+    <div className="flex flex-col h-full bg-gradient-to-b from-orange-50 to-white dark:from-gray-800 dark:to-gray-900">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {messages.map((msg) => (
@@ -190,7 +248,7 @@ export default function OrderChat({ onOrderParsed }: OrderChatProps) {
               className={`max-w-[85%] px-4 py-3 whitespace-pre-wrap text-[15px] leading-relaxed ${
                 msg.type === 'user'
                   ? 'bg-orange-500 text-white rounded-2xl rounded-br-md shadow-sm'
-                  : 'bg-white text-gray-800 rounded-2xl rounded-bl-md shadow-md border border-gray-100'
+                  : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-2xl rounded-bl-md shadow-md border border-gray-100 dark:border-gray-700'
               }`}
             >
               {msg.text}
@@ -200,16 +258,16 @@ export default function OrderChat({ onOrderParsed }: OrderChatProps) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Quick Varian Buttons (when waiting for clarification) */}
-      {chatState === 'waitingClarification' && (
+      {/* Quick Varian Buttons */}
+      {chatState === 'waitingVarian' && (
         <div className="px-4 pb-2">
           <div className="flex gap-2">
             {VARIAN_OPTIONS.map((varian) => (
               <button
                 key={varian}
                 onClick={() => handleQuickVarian(varian)}
-                className="flex-1 py-3 bg-white border-2 border-orange-200 text-orange-600 font-semibold
-                           rounded-xl hover:bg-orange-50 hover:border-orange-300 transition-all
+                className="flex-1 py-3 bg-white dark:bg-gray-800 border-2 border-orange-200 dark:border-orange-700 text-orange-600 dark:text-orange-400 font-semibold
+                           rounded-xl hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:border-orange-300 dark:hover:border-orange-600 transition-all
                            active:scale-95 shadow-sm"
               >
                 {VARIAN_LABELS[varian]}
@@ -219,8 +277,27 @@ export default function OrderChat({ onOrderParsed }: OrderChatProps) {
         </div>
       )}
 
+      {/* Quick Ukuran Buttons */}
+      {chatState === 'waitingUkuran' && (
+        <div className="px-4 pb-2">
+          <div className="flex gap-2">
+            {UKURAN_OPTIONS.map((ukuran) => (
+              <button
+                key={ukuran}
+                onClick={() => handleQuickUkuran(ukuran)}
+                className="flex-1 py-3 bg-white dark:bg-gray-800 border-2 border-orange-200 dark:border-orange-700 text-orange-600 dark:text-orange-400 font-semibold
+                           rounded-xl hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:border-orange-300 dark:hover:border-orange-600 transition-all
+                           active:scale-95 shadow-sm"
+              >
+                {UKURAN_LABELS[ukuran]}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Input Area - Fixed at bottom */}
-      <div className="sticky bottom-0 bg-white border-t border-gray-200 px-4 py-3 shadow-lg">
+      <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-3 shadow-lg">
         <div className="flex gap-3 items-end">
           <textarea
             ref={inputRef}
@@ -228,14 +305,16 @@ export default function OrderChat({ onOrderParsed }: OrderChatProps) {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={
-              chatState === 'waitingClarification'
+              chatState === 'waitingVarian'
                 ? 'Atau ketik varian...'
+                : chatState === 'waitingUkuran'
+                ? 'Atau ketik ukuran...'
                 : 'Ketik pesanan di sini...'
             }
             rows={1}
-            className="flex-1 px-4 py-3 bg-gray-100 border-0 rounded-2xl resize-none
-                       focus:outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white
-                       text-[16px] placeholder-gray-400 transition-all"
+            className="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-700 border-0 rounded-2xl resize-none
+                       focus:outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white dark:focus:bg-gray-600
+                       text-[16px] text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-all"
             style={{ minHeight: '48px', maxHeight: '120px' }}
           />
           <button

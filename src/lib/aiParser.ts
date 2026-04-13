@@ -41,6 +41,7 @@ Output dalam format JSON array:
     {
       "varian": "signature" atau null,
       "ukuran": "jumbo",
+      "ukuran_explicit": true,
       "daging": "beef klasik",
       "kepedasan": "pedas",
       "qty": 1,
@@ -50,11 +51,16 @@ Output dalam format JSON array:
   ]
 }
 
+PENTING untuk ukuran:
+- ukuran_explicit = true jika user MENYEBUTKAN ukuran (small/kecil, reguler/reg, jumbo/besar/gede)
+- ukuran_explicit = false jika user TIDAK menyebutkan ukuran (kamu default ke reguler)
+
 HANYA output JSON, tanpa penjelasan.`;
 
 interface AIOrderItem {
   varian: string | null;
   ukuran: string;
+  ukuran_explicit?: boolean;
   daging: string;
   kepedasan: string;
   qty: number;
@@ -173,6 +179,15 @@ export function convertAIResultToItems(aiResult: AIParseResult): {
       kepedasan = 'sedang';
     }
 
+    // Track missing fields
+    const missing: string[] = [];
+    if (!varian) missing.push('varian');
+
+    // Check if ukuran was explicitly set by user
+    if (item.ukuran_explicit === false) {
+      missing.push('ukuran');
+    }
+
     return {
       varian,
       daging,
@@ -181,7 +196,7 @@ export function convertAIResultToItems(aiResult: AIParseResult): {
       toppings: item.toppings || [],
       catatan: item.catatan || '',
       qty: item.qty || 1,
-      missing: varian ? [] : ['varian'],
+      missing,
     };
   });
 

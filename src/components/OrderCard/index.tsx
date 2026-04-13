@@ -49,12 +49,15 @@ export default function OrderCard({
 
   const handleSave = async () => {
     setSaving(true);
-    await onSave(orderItems, nama, total);
-    setSaving(false);
+    try {
+      await onSave(orderItems, nama, total);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
+    <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl overflow-hidden">
       {/* Header with customer name */}
       <div className="bg-gradient-to-r from-orange-500 to-orange-400 px-5 py-4">
         <div className="flex items-center gap-2">
@@ -72,19 +75,19 @@ export default function OrderCard({
       </div>
 
       {/* Items */}
-      <div className="divide-y divide-gray-100">
+      <div className="divide-y divide-gray-100 dark:divide-gray-700">
         {orderItems.map((item, index) => (
           <div key={index} className="p-4">
             <div className="flex justify-between items-start gap-3">
               <div className="flex-1 min-w-0">
-                <div className="font-semibold text-gray-900 text-base">
+                <div className="font-semibold text-gray-900 dark:text-white text-base">
                   {VARIAN_LABELS[item.varian]} {UKURAN_LABELS[item.ukuran]}
                 </div>
-                <div className="text-sm text-gray-500 mt-0.5">
+                <div className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                   {DAGING_LABELS[item.daging]} • {item.kepedasan.charAt(0).toUpperCase() + item.kepedasan.slice(1)}
                 </div>
                 {item.toppings.length > 0 && (
-                  <div className="text-sm text-orange-500 font-medium mt-1">
+                  <div className="text-sm text-orange-500 dark:text-orange-400 font-medium mt-1">
                     + {item.toppings.join(', ')}
                   </div>
                 )}
@@ -98,7 +101,8 @@ export default function OrderCard({
                       onChange={(e) => setEditCatatan(e.target.value)}
                       placeholder="Tambah catatan..."
                       autoFocus
-                      className="flex-1 text-sm px-3 py-2 bg-gray-100 border-0 rounded-xl
+                      className="flex-1 text-sm px-3 py-2 bg-gray-100 dark:bg-gray-700 border-0 rounded-xl
+                                 text-gray-900 dark:text-gray-100
                                  focus:outline-none focus:ring-2 focus:ring-orange-500"
                     />
                     <button
@@ -114,7 +118,7 @@ export default function OrderCard({
                       setEditingIndex(index);
                       setEditCatatan(item.catatan);
                     }}
-                    className="mt-2 text-xs text-gray-400 hover:text-orange-500 transition-colors"
+                    className="mt-2 text-xs text-gray-400 dark:text-gray-500 hover:text-orange-500 dark:hover:text-orange-400 transition-colors"
                   >
                     {item.catatan || '+ Tambah catatan'}
                   </button>
@@ -122,10 +126,10 @@ export default function OrderCard({
               </div>
 
               <div className="text-right flex-shrink-0">
-                <div className="text-xs text-gray-400">
+                <div className="text-xs text-gray-400 dark:text-gray-500">
                   {item.qty}x {formatRupiah(item.harga_satuan)}
                 </div>
-                <div className="font-bold text-gray-900 text-lg">
+                <div className="font-bold text-gray-900 dark:text-white text-lg">
                   {formatRupiah(item.subtotal)}
                 </div>
               </div>
@@ -135,9 +139,9 @@ export default function OrderCard({
       </div>
 
       {/* Total */}
-      <div className="bg-gray-50 px-5 py-4 border-t border-gray-100">
+      <div className="bg-gray-50 dark:bg-gray-900/50 px-5 py-4 border-t border-gray-100 dark:border-gray-700">
         <div className="flex justify-between items-center">
-          <span className="text-gray-500 font-medium">Total</span>
+          <span className="text-gray-500 dark:text-gray-400 font-medium">Total</span>
           <span className="text-2xl font-bold text-orange-500">
             {formatRupiah(total)}
           </span>
@@ -149,8 +153,8 @@ export default function OrderCard({
         <button
           onClick={onCancel}
           disabled={saving}
-          className="py-4 px-4 bg-gray-100 text-gray-600 font-semibold
-                     rounded-2xl hover:bg-gray-200 transition-all active:scale-95"
+          className="py-4 px-4 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-semibold
+                     rounded-2xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all active:scale-95"
         >
           Batal
         </button>
