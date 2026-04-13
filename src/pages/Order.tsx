@@ -93,11 +93,23 @@ export default function Order() {
     }
 
     try {
-      // Get next tx_number
-      const { data: txNumData } = await supabase.rpc('get_next_tx_number', {
-        p_lapak_id: activeLapak.id,
-      });
-      const txNumber = txNumData || 1;
+      // Get next tx_number - try RPC first, fallback to counting
+      let txNumber = 1;
+      try {
+        const { data: txNumData } = await supabase.rpc('get_next_tx_number', {
+          p_lapak_id: activeLapak.id,
+        });
+        txNumber = txNumData || 1;
+      } catch {
+        // Fallback: count today's transactions + 1
+        const today = new Date().toISOString().split('T')[0];
+        const { count } = await supabase
+          .from('transaksi')
+          .select('*', { count: 'exact', head: true })
+          .eq('lapak_id', activeLapak.id)
+          .gte('created_at', today);
+        txNumber = (count || 0) + 1;
+      }
 
       // Insert transaksi
       const { data: transaksiData, error: transaksiError } = await supabase
