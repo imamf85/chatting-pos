@@ -35,6 +35,14 @@ export function ActiveLapakProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (authLoading) return;
 
+    // Don't fetch if no profile (user not logged in)
+    if (!profile) {
+      setLoading(false);
+      return;
+    }
+
+    let mounted = true;
+
     async function fetchLapaks() {
       setLoading(true);
 
@@ -54,38 +62,56 @@ export function ActiveLapakProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      if (profile?.role === 'owner') {
-        // Owner dapat akses semua lapak
-        const { data, error } = await supabase
-          .from('lapak')
-          .select('*')
-          .order('nama');
+      try {
+        if (profile?.role === 'owner') {
+          // Owner dapat akses semua lapak
+          const { data, error } = await supabase
+            .from('lapak')
+            .select('*')
+            .order('nama');
 
-        if (!error && data) {
-          setAvailableLapaks(data);
-          // Set default ke lapak pertama jika belum ada active
-          if (!activeLapak && data.length > 0) {
-            setActiveLapakState(data[0]);
+          if (!mounted) return;
+
+          if (error) {
+            console.error('Error fetching lapaks:', error);
+          } else if (data && data.length > 0) {
+            setAvailableLapaks(data);
+            // Set default ke lapak pertama jika belum ada active
+            if (!activeLapak) {
+              setActiveLapakState(data[0]);
+            }
+          }
+        } else if (profile?.role === 'karyawan' && profile.lapak_id) {
+          // Karyawan hanya dapat akses lapaknya sendiri
+          const { data, error } = await supabase
+            .from('lapak')
+            .select('*')
+            .eq('id', profile.lapak_id)
+            .single();
+
+          if (!mounted) return;
+
+          if (error) {
+            console.error('Error fetching lapak:', error);
+          } else if (data) {
+            setAvailableLapaks([data]);
+            setActiveLapakState(data);
           }
         }
-      } else if (profile?.role === 'karyawan' && profile.lapak_id) {
-        // Karyawan hanya dapat akses lapaknya sendiri
-        const { data, error } = await supabase
-          .from('lapak')
-          .select('*')
-          .eq('id', profile.lapak_id)
-          .single();
-
-        if (!error && data) {
-          setAvailableLapaks([data]);
-          setActiveLapakState(data);
+      } catch (err) {
+        console.error('Lapak fetch error:', err);
+      } finally {
+        if (mounted) {
+          setLoading(false);
         }
       }
-
-      setLoading(false);
     }
 
     fetchLapaks();
+
+    return () => {
+      mounted = false;
+    };
   }, [profile, authLoading]);
 
   const setActiveLapak = (lapak: Lapak) => {

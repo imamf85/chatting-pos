@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
 
 export default function Login() {
-  const { signIn, user, loading: authLoading, isDemoMode } = useAuth();
+  const { signIn, user, profile, loading: authLoading, isDemoMode, error: authError } = useAuth();
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
 
@@ -13,15 +13,22 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Redirect if already logged in
+  // Show auth error if any
   useEffect(() => {
-    if (user && !authLoading) {
+    if (authError) {
+      setError(authError);
+    }
+  }, [authError]);
+
+  // Redirect if already logged in AND has profile
+  useEffect(() => {
+    if (user && profile && !authLoading) {
       navigate('/order', { replace: true });
     }
-  }, [user, authLoading, navigate]);
+  }, [user, profile, authLoading, navigate]);
 
-  // Show loading while checking auth or redirecting
-  if (authLoading || user) {
+  // Show loading only while checking auth (not when user exists but profile missing)
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-100 via-orange-50 to-white dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
         <div className="flex flex-col items-center gap-3">
