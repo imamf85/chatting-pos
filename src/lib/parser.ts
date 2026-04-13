@@ -383,6 +383,46 @@ function parseLine(line: string): ParsedItem[] {
 }
 
 /**
+ * Check if a line is only qty + kepedasan (breakdown line)
+ * e.g., "1 pedes", "2 nggak pedes", "3 sedang"
+ */
+function isBreakdownLine(line: string): boolean {
+  const normalized = normalizeText(line);
+
+  // Pattern: hanya angka + kepedasan (dengan variasi)
+  const breakdownPattern = /^\d+\s*(pedes|pedas|sedang|sedeng|tidak\s*pedas|gk\s*pedes|ga\s*pedes|gak\s*pedes|nggak\s*pedes|enggak\s*pedes|tdk\s*pedes|g\s*pedes)$/i;
+
+  return breakdownPattern.test(normalized);
+}
+
+/**
+ * Parse breakdown line to get qty and kepedasan
+ */
+function parseBreakdownLine(line: string): { qty: number; kepedasan: Kepedasan } | null {
+  const normalized = normalizeText(line);
+
+  const match = normalized.match(/^(\d+)\s*(.+)$/);
+  if (!match) return null;
+
+  const qty = parseInt(match[1], 10);
+  const kepText = match[2].trim();
+
+  // Find kepedasan
+  for (const [alias, kepedasan] of Object.entries(KEPEDASAN_ALIASES)) {
+    if (kepText.includes(alias) || alias.includes(kepText)) {
+      return { qty, kepedasan };
+    }
+  }
+
+  // Check for common variations
+  if (kepText.includes('nggak') || kepText.includes('enggak')) {
+    return { qty, kepedasan: 'tidak pedas' };
+  }
+
+  return null;
+}
+
+/**
  * Main parser function
  */
 export function parseOrder(rawText: string): ParseResult {
@@ -400,11 +440,51 @@ export function parseOrder(rawText: string): ParseResult {
   // Step 2: Split menjadi baris
   const lines = splitLines(cleanText);
 
-  // Step 3: Parse setiap baris
+  // Step 3: Parse dengan context awareness untuk multi-line patterns
   const items: ParsedItem[] = [];
-  for (const line of lines) {
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
     const parsedItems = parseLine(line);
+
+    // Check if this is a header line followed by breakdown lines
+    if (parsedItems.length === 1 && parsedItems[0].varian !== null) {
+      const headerItem = parsedItems[0];
+      const breakdowns: Array<{ qty: number; kepedasan: Kepedasan }> = [];
+
+      // Look ahead for breakdown lines
+      let j = i + 1;
+      while (j < lines.length && isBreakdownLine(lines[j])) {
+        const breakdown = parseBreakdownLine(lines[j]);
+        if (breakdown) {
+          breakdowns.push(breakdown);
+        }
+        j++;
+      }
+
+      // Check if breakdowns sum equals header qty
+      if (breakdowns.length > 0) {
+        const breakdownTotal = breakdowns.reduce((sum, b) => sum + b.qty, 0);
+
+        if (breakdownTotal === headerItem.qty) {
+          // Valid breakdown pattern - create items from breakdowns
+          for (const { qty, kepedasan } of breakdowns) {
+            items.push({
+              ...headerItem,
+              qty,
+              kepedasan,
+            });
+          }
+          i = j; // Skip processed breakdown lines
+          continue;
+        }
+      }
+    }
+
+    // Normal processing - add items as-is
     items.push(...parsedItems);
+    i++;
   }
 
   // Step 4: Check if any item missing varian
