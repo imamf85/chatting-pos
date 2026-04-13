@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { parseOrder, applyMissingVarian } from '../../lib/parser';
+import { parseWithAI, convertAIResultToItems, isAIEnabled } from '../../lib/aiParser';
 import { VARIAN_OPTIONS, VARIAN_LABELS } from '../../lib/menu';
 import type { ParsedItem, Varian } from '../../types';
 
@@ -7,7 +8,7 @@ interface OrderChatProps {
   onOrderParsed: (items: ParsedItem[], namaCustomer: string) => void;
 }
 
-type ChatState = 'idle' | 'waitingClarification';
+type ChatState = 'idle' | 'waitingClarification' | 'parsing';
 
 interface Message {
   id: string;
@@ -52,7 +53,7 @@ export default function OrderChat({ onOrderParsed }: OrderChatProps) {
 
   const handleSubmit = () => {
     const text = input.trim();
-    if (!text) return;
+    if (!text || chatState === 'parsing') return;
 
     addMessage('user', text);
     setInput('');
@@ -66,7 +67,47 @@ export default function OrderChat({ onOrderParsed }: OrderChatProps) {
     inputRef.current?.focus();
   };
 
-  const handleNewOrder = (text: string) => {
+  const handleNewOrder = async (text: string) => {
+    // Try AI parser first if enabled
+    if (isAIEnabled()) {
+      setChatState('parsing');
+      addMessage('system', 'Sedang memproses pesanan... ⏳');
+
+      try {
+        const aiResult = await parseWithAI(text);
+
+        if (aiResult && aiResult.items.length > 0) {
+          const { items, namaCustomer } = convertAIResultToItems(aiResult);
+
+          // Remove the "processing" message
+          setMessages((prev) => prev.slice(0, -1));
+
+          const hasMissingVarian = items.some((i) => !i.varian);
+
+          if (hasMissingVarian) {
+            const missingCount = items.filter((i) => !i.varian).length;
+            setPendingItems(items);
+            setPendingNama(namaCustomer);
+            setChatState('waitingClarification');
+            addMessage(
+              'system',
+              `Ada ${missingCount} item yang variannya belum jelas 🧐\n\nMau pakai varian apa?\n• Original\n• Signature\n• Cheesy`
+            );
+          } else {
+            setChatState('idle');
+            onOrderParsed(items, namaCustomer);
+          }
+          return;
+        }
+      } catch (error) {
+        console.error('AI parsing failed, falling back to regex:', error);
+        // Remove the "processing" message and continue with fallback
+        setMessages((prev) => prev.slice(0, -1));
+      }
+    }
+
+    // Fallback to regex parser
+    setChatState('idle');
     const result = parseOrder(text);
 
     if (result.items.length === 0) {
