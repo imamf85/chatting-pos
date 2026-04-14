@@ -13,21 +13,18 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Show auth error if any
   useEffect(() => {
     if (authError) {
       setError(authError);
     }
   }, [authError]);
 
-  // Redirect if already logged in AND has profile
   useEffect(() => {
     if (user && profile && !authLoading) {
       navigate('/order', { replace: true });
     }
   }, [user, profile, authLoading, navigate]);
 
-  // Show loading only while checking auth (not when user exists but profile missing)
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-100 via-emerald-50 to-white dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
