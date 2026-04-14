@@ -273,9 +273,9 @@ export default function Order() {
 
   if (lapakLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-orange-50 dark:bg-gray-900">
+      <div className="min-h-screen flex items-center justify-center bg-emerald-50 dark:bg-gray-900">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+          <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
           <div className="text-gray-500 dark:text-gray-400">Loading...</div>
         </div>
       </div>
@@ -288,7 +288,7 @@ export default function Order() {
       <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex-shrink-0 safe-area-top">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-orange-500">AL BEWOK</h1>
+            <h1 className="text-xl font-bold text-emerald-600">AL BEWOK</h1>
             {profile?.role === 'owner' && <LapakSwitcher />}
           </div>
 
@@ -343,7 +343,7 @@ export default function Order() {
 
             <Link
               to="/rekap"
-              className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-orange-500 transition-colors"
+              className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-emerald-500 transition-colors"
             >
               Rekap
             </Link>
@@ -359,7 +359,7 @@ export default function Order() {
 
       {/* Current lapak info for karyawan */}
       {profile?.role === 'karyawan' && activeLapak && (
-        <div className="bg-gradient-to-r from-orange-500 to-orange-400 px-4 py-2 text-center flex-shrink-0">
+        <div className="bg-gradient-to-r from-emerald-500 to-emerald-400 px-4 py-2 text-center flex-shrink-0">
           <span className="text-white text-sm font-medium">{activeLapak.nama}</span>
         </div>
       )}
@@ -553,12 +553,12 @@ export default function Order() {
                   <button
                     onClick={() => handlePrint('kitchen')}
                     disabled={printing}
-                    className="py-3 px-4 bg-white dark:bg-gray-800 border-2 border-orange-200 dark:border-orange-700 text-orange-700 dark:text-orange-400 font-semibold
-                               rounded-2xl hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-all active:scale-95 shadow-sm
+                    className="py-3 px-4 bg-white dark:bg-gray-800 border-2 border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400 font-semibold
+                               rounded-2xl hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all active:scale-95 shadow-sm
                                disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     {printing ? (
-                      <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                      <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
                     ) : (
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -583,8 +583,8 @@ export default function Order() {
                 )}
                 <button
                   onClick={handleNewOrder}
-                  className={`py-4 px-4 bg-orange-500 text-white font-semibold
-                             rounded-2xl hover:bg-orange-600 transition-all active:scale-95 shadow-lg
+                  className={`py-4 px-4 bg-emerald-500 text-white font-semibold
+                             rounded-2xl hover:bg-emerald-600 transition-all active:scale-95 shadow-lg
                              ${printerConnected ? 'col-span-2' : ''}`}
                 >
                   + Order Baru

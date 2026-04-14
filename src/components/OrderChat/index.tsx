@@ -236,7 +236,7 @@ export default function OrderChat({ onOrderParsed }: OrderChatProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-b from-orange-50 to-white dark:from-gray-800 dark:to-gray-900">
+    <div className="flex flex-col h-full bg-gradient-to-b from-emerald-50 to-white dark:from-gray-800 dark:to-gray-900">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {messages.map((msg) => (
@@ -247,7 +247,7 @@ export default function OrderChat({ onOrderParsed }: OrderChatProps) {
             <div
               className={`max-w-[85%] px-4 py-3 whitespace-pre-wrap text-[15px] leading-relaxed ${
                 msg.type === 'user'
-                  ? 'bg-orange-500 text-white rounded-2xl rounded-br-md shadow-sm'
+                  ? 'bg-emerald-500 text-white rounded-2xl rounded-br-md shadow-sm'
                   : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-2xl rounded-bl-md shadow-md border border-gray-100 dark:border-gray-700'
               }`}
             >
@@ -266,8 +266,8 @@ export default function OrderChat({ onOrderParsed }: OrderChatProps) {
               <button
                 key={varian}
                 onClick={() => handleQuickVarian(varian)}
-                className="flex-1 py-3 bg-white dark:bg-gray-800 border-2 border-orange-200 dark:border-orange-700 text-orange-600 dark:text-orange-400 font-semibold
-                           rounded-xl hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:border-orange-300 dark:hover:border-orange-600 transition-all
+                className="flex-1 py-3 bg-white dark:bg-gray-800 border-2 border-emerald-200 dark:border-emerald-700 text-emerald-600 dark:text-emerald-400 font-semibold
+                           rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-900/20 hover:border-emerald-300 dark:hover:border-emerald-600 transition-all
                            active:scale-95 shadow-sm"
               >
                 {VARIAN_LABELS[varian]}
@@ -285,8 +285,8 @@ export default function OrderChat({ onOrderParsed }: OrderChatProps) {
               <button
                 key={ukuran}
                 onClick={() => handleQuickUkuran(ukuran)}
-                className="flex-1 py-3 bg-white dark:bg-gray-800 border-2 border-orange-200 dark:border-orange-700 text-orange-600 dark:text-orange-400 font-semibold
-                           rounded-xl hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:border-orange-300 dark:hover:border-orange-600 transition-all
+                className="flex-1 py-3 bg-white dark:bg-gray-800 border-2 border-emerald-200 dark:border-emerald-700 text-emerald-600 dark:text-emerald-400 font-semibold
+                           rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-900/20 hover:border-emerald-300 dark:hover:border-emerald-600 transition-all
                            active:scale-95 shadow-sm"
               >
                 {UKURAN_LABELS[ukuran]}
@@ -313,15 +313,15 @@ export default function OrderChat({ onOrderParsed }: OrderChatProps) {
             }
             rows={1}
             className="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-700 border-0 rounded-2xl resize-none
-                       focus:outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white dark:focus:bg-gray-600
+                       focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white dark:focus:bg-gray-600
                        text-[16px] text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-all"
             style={{ minHeight: '48px', maxHeight: '120px' }}
           />
           <button
             onClick={handleSubmit}
             disabled={!input.trim()}
-            className="w-12 h-12 flex items-center justify-center bg-orange-500 text-white
-                       rounded-full shadow-lg hover:bg-orange-600 transition-all
+            className="w-12 h-12 flex items-center justify-center bg-emerald-500 text-white
+                       rounded-full shadow-lg hover:bg-emerald-600 transition-all
                        disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

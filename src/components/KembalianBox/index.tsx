@@ -71,7 +71,7 @@ export default function KembalianBox({ total, onPaymentComplete }: KembalianBoxP
     }
     if (kembalian === 0) {
       return {
-        bg: 'bg-gradient-to-r from-amber-400 to-orange-400',
+        bg: 'bg-gradient-to-r from-amber-400 to-emerald-400',
         text: 'text-white',
         message: 'Uang pas!',
       };
@@ -91,7 +91,7 @@ export default function KembalianBox({ total, onPaymentComplete }: KembalianBoxP
       <div className="bg-gray-50 dark:bg-gray-900/50 px-5 py-4 border-b border-gray-100 dark:border-gray-700">
         <div className="flex justify-between items-center">
           <span className="text-gray-500 dark:text-gray-400 font-medium">Total Bayar</span>
-          <span className="text-2xl font-bold text-orange-500">
+          <span className="text-2xl font-bold text-emerald-500">
             {formatRupiah(total)}
           </span>
         </div>
@@ -107,7 +107,7 @@ export default function KembalianBox({ total, onPaymentComplete }: KembalianBoxP
               onClick={() => handleNominalClick(nominal)}
               className={`py-4 px-2 rounded-2xl font-semibold text-base transition-all active:scale-95 ${
                 bayar === nominal
-                  ? 'bg-orange-500 text-white shadow-lg'
+                  ? 'bg-emerald-500 text-white shadow-lg'
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
               }`}
             >
@@ -125,7 +125,7 @@ export default function KembalianBox({ total, onPaymentComplete }: KembalianBoxP
             onChange={(e) => handleCustomChange(e.target.value)}
             placeholder="Atau ketik nominal lain (ribu)..."
             className="w-full px-4 py-4 bg-gray-100 dark:bg-gray-700 border-0 rounded-2xl
-                       focus:outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white dark:focus:bg-gray-600
+                       focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white dark:focus:bg-gray-600
                        text-base font-medium text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-all"
           />
         </div>

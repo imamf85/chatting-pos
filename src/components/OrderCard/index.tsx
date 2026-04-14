@@ -59,15 +59,15 @@ export default function OrderCard({
   return (
     <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl overflow-hidden">
       {/* Header with customer name */}
-      <div className="bg-gradient-to-r from-orange-500 to-orange-400 px-5 py-4">
+      <div className="bg-gradient-to-r from-emerald-500 to-emerald-400 px-5 py-4">
         <div className="flex items-center gap-2">
-          <span className="text-orange-100 text-sm">a.n.</span>
+          <span className="text-emerald-100 text-sm">a.n.</span>
           <input
             type="text"
             value={nama}
             onChange={(e) => setNama(e.target.value)}
             placeholder="Nama customer"
-            className="flex-1 bg-white/20 backdrop-blur text-white placeholder-orange-200
+            className="flex-1 bg-white/20 backdrop-blur text-white placeholder-emerald-200
                        border-0 rounded-xl px-3 py-2 text-base font-medium
                        focus:outline-none focus:ring-2 focus:ring-white/50"
           />
@@ -87,7 +87,7 @@ export default function OrderCard({
                   {DAGING_LABELS[item.daging]} • {item.kepedasan.charAt(0).toUpperCase() + item.kepedasan.slice(1)}
                 </div>
                 {item.toppings.length > 0 && (
-                  <div className="text-sm text-orange-500 dark:text-orange-400 font-medium mt-1">
+                  <div className="text-sm text-emerald-500 dark:text-emerald-400 font-medium mt-1">
                     + {item.toppings.join(', ')}
                   </div>
                 )}
@@ -103,11 +103,11 @@ export default function OrderCard({
                       autoFocus
                       className="flex-1 text-sm px-3 py-2 bg-gray-100 dark:bg-gray-700 border-0 rounded-xl
                                  text-gray-900 dark:text-gray-100
-                                 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                     <button
                       onClick={handleSaveCatatan}
-                      className="px-4 py-2 bg-orange-500 text-white text-sm font-medium rounded-xl"
+                      className="px-4 py-2 bg-emerald-500 text-white text-sm font-medium rounded-xl"
                     >
                       OK
                     </button>
@@ -118,7 +118,7 @@ export default function OrderCard({
                       setEditingIndex(index);
                       setEditCatatan(item.catatan);
                     }}
-                    className="mt-2 text-xs text-gray-400 dark:text-gray-500 hover:text-orange-500 dark:hover:text-orange-400 transition-colors"
+                    className="mt-2 text-xs text-gray-400 dark:text-gray-500 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors"
                   >
                     {item.catatan || '+ Tambah catatan'}
                   </button>
@@ -142,7 +142,7 @@ export default function OrderCard({
       <div className="bg-gray-50 dark:bg-gray-900/50 px-5 py-4 border-t border-gray-100 dark:border-gray-700">
         <div className="flex justify-between items-center">
           <span className="text-gray-500 dark:text-gray-400 font-medium">Total</span>
-          <span className="text-2xl font-bold text-orange-500">
+          <span className="text-2xl font-bold text-emerald-500">
             {formatRupiah(total)}
           </span>
         </div>
@@ -161,8 +161,8 @@ export default function OrderCard({
         <button
           onClick={handleSave}
           disabled={saving}
-          className="py-4 px-4 bg-orange-500 text-white font-semibold
-                     rounded-2xl hover:bg-orange-600 transition-all active:scale-95 shadow-lg
+          className="py-4 px-4 bg-emerald-500 text-white font-semibold
+                     rounded-2xl hover:bg-emerald-600 transition-all active:scale-95 shadow-lg
                      disabled:opacity-50"
         >
           {saving ? 'Menyimpan...' : 'Simpan'}

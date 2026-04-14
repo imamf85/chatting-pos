@@ -30,9 +30,9 @@ export default function Login() {
   // Show loading only while checking auth (not when user exists but profile missing)
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-100 via-orange-50 to-white dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-100 via-emerald-50 to-white dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+          <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
           <div className="text-gray-500 dark:text-gray-400 font-medium">Loading...</div>
         </div>
       </div>
@@ -65,9 +65,9 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-orange-100 via-orange-50 to-white dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-emerald-100 via-emerald-50 to-white dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
       {/* Header decoration */}
-      <div className="absolute top-0 left-0 right-0 h-64 bg-gradient-to-br from-orange-500 to-orange-400 dark:from-orange-600 dark:to-orange-500 rounded-b-[3rem]" />
+      <div className="absolute top-0 left-0 right-0 h-64 bg-gradient-to-br from-emerald-500 to-emerald-400 dark:from-emerald-600 dark:to-emerald-500 rounded-b-[3rem]" />
 
       {/* Theme Toggle - Top Right */}
       <button
@@ -97,7 +97,7 @@ export default function Login() {
             <span className="text-3xl">🥙</span>
           </div>
           <h1 className="text-3xl font-bold text-white drop-shadow-lg">AL BEWOK</h1>
-          <p className="text-orange-100 text-sm mt-1">Point of Sale</p>
+          <p className="text-emerald-100 text-sm mt-1">Point of Sale</p>
         </div>
 
         {/* Card */}
@@ -112,8 +112,8 @@ export default function Login() {
                 <button
                   onClick={() => handleDemoLogin('owner')}
                   disabled={loading}
-                  className="py-3 px-4 bg-orange-500 text-white text-sm font-semibold rounded-xl
-                             hover:bg-orange-600 transition-all active:scale-95 disabled:opacity-50"
+                  className="py-3 px-4 bg-emerald-500 text-white text-sm font-semibold rounded-xl
+                             hover:bg-emerald-600 transition-all active:scale-95 disabled:opacity-50"
                 >
                   Login Owner
                 </button>
@@ -143,7 +143,7 @@ export default function Login() {
                 placeholder="email@albewok.com"
                 required
                 className="w-full px-4 py-4 bg-gray-100 dark:bg-gray-700 border-0 rounded-2xl
-                           focus:outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white dark:focus:bg-gray-600
+                           focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white dark:focus:bg-gray-600
                            text-base font-medium text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-all"
               />
             </div>
@@ -160,7 +160,7 @@ export default function Login() {
                 placeholder="••••••••"
                 required
                 className="w-full px-4 py-4 bg-gray-100 dark:bg-gray-700 border-0 rounded-2xl
-                           focus:outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white dark:focus:bg-gray-600
+                           focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white dark:focus:bg-gray-600
                            text-base font-medium text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-all"
               />
             </div>
@@ -174,7 +174,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-orange-500 to-orange-400 text-white font-bold
+              className="w-full bg-gradient-to-r from-emerald-500 to-emerald-400 text-white font-bold
                          py-4 px-4 rounded-2xl transition-all hover:shadow-lg
                          disabled:opacity-50 disabled:cursor-not-allowed active:scale-95
                          text-base shadow-lg"

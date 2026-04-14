@@ -3,10 +3,9 @@ import {
   useContext,
   useState,
   useEffect,
-  useCallback,
   type ReactNode,
 } from 'react';
-import type { User } from '@supabase/supabase-js';
+import type { User, AuthChangeEvent } from '@supabase/supabase-js';
 import { supabase, isDemoMode } from '../lib/supabase';
 import { getProfileAfterLogin } from '../lib/auth';
 import type { UserProfile } from '../types';
@@ -55,73 +54,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Helper to fetch profile with retry
-  const fetchProfile = useCallback(async (userId: string, retries = 3): Promise<UserProfile | null> => {
-    for (let i = 0; i < retries; i++) {
-      try {
-        const profileData = await getProfileAfterLogin(userId);
-        if (profileData) return profileData;
-        // Wait before retry
-        if (i < retries - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      } catch (err) {
-        console.error(`Profile fetch attempt ${i + 1} failed:`, err);
-        if (i < retries - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
-    }
-    return null;
-  }, []);
-
   useEffect(() => {
     if (isDemoMode) {
-      // Demo mode - tidak perlu auth
       setLoading(false);
       return;
     }
 
     let mounted = true;
 
-    // Get initial session
-    const initAuth = async () => {
-      try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    // Handle auth state changes - this is the main auth handler
+    const handleAuthChange = async (event: AuthChangeEvent, userId: string | null) => {
+      if (!mounted) return;
 
-        if (sessionError) {
-          console.error('Session error:', sessionError);
-          if (mounted) {
-            setError('Gagal memuat sesi. Silakan login ulang.');
-            setLoading(false);
-          }
-          return;
-        }
+      console.log('Auth event:', event, 'User:', userId ? 'present' : 'null');
+
+      if (!userId) {
+        setUser(null);
+        setProfile(null);
+        setError(null);
+        setLoading(false);
+        return;
+      }
+
+      // Fetch profile for authenticated user
+      try {
+        // Small delay to ensure Supabase auth is fully ready
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        const profileData = await getProfileAfterLogin(userId);
 
         if (!mounted) return;
 
-        setUser(session?.user ?? null);
-
-        if (session?.user) {
-          const profileData = await fetchProfile(session.user.id);
-
-          if (!mounted) return;
-
-          if (!profileData) {
-            // Profile tidak ditemukan - sign out dan tampilkan error
-            console.error('Profile not found for user:', session.user.id);
-            setError('Profil tidak ditemukan. Hubungi admin.');
-            await supabase.auth.signOut();
-            setUser(null);
-          } else {
-            setProfile(profileData);
-            setError(null);
-          }
+        if (profileData) {
+          setProfile(profileData);
+          setError(null);
+        } else {
+          console.error('Profile not found for user:', userId);
+          setError('Profil tidak ditemukan. Hubungi admin.');
+          // Don't sign out - let user see the error
+          setProfile(null);
         }
       } catch (err) {
-        console.error('Auth init error:', err);
+        console.error('Profile fetch error:', err);
         if (mounted) {
-          setError('Terjadi kesalahan saat memuat data.');
+          setError('Gagal memuat profil. Coba refresh halaman.');
+          setProfile(null);
         }
       } finally {
         if (mounted) {
@@ -130,64 +107,106 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    initAuth();
-
-    // Listen for auth changes
+    // Subscribe to auth state changes FIRST
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
-      console.log('Auth state changed:', event);
+      // Update user immediately
+      setUser(session?.user ?? null);
 
+      // Handle different events
       if (event === 'SIGNED_OUT') {
-        setUser(null);
         setProfile(null);
         setError(null);
+        setLoading(false);
         return;
       }
 
-      setUser(session?.user ?? null);
-
-      if (session?.user) {
-        const profileData = await fetchProfile(session.user.id);
-
-        if (!mounted) return;
-
-        if (!profileData) {
-          setError('Profil tidak ditemukan. Hubungi admin.');
-          await supabase.auth.signOut();
-          setUser(null);
-          setProfile(null);
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+        if (session?.user) {
+          await handleAuthChange(event, session.user.id);
         } else {
-          setProfile(profileData);
-          setError(null);
+          setLoading(false);
         }
-      } else {
-        setProfile(null);
       }
     });
+
+    // Then get current session - this will trigger INITIAL_SESSION event
+    const initSession = async () => {
+      try {
+        // Use getSession to check for existing session
+        // This will trigger onAuthStateChange with INITIAL_SESSION
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+        if (sessionError) {
+          console.error('Get session error:', sessionError);
+          if (mounted) {
+            setError('Gagal memuat sesi.');
+            setLoading(false);
+          }
+          return;
+        }
+
+        // If no session exists, just stop loading
+        if (!session && mounted) {
+          setLoading(false);
+        }
+
+        // If session exists but onAuthStateChange hasn't fired yet,
+        // manually handle it after a short delay
+        if (session?.user && mounted) {
+          // Give onAuthStateChange time to fire
+          setTimeout(async () => {
+            // Only proceed if still loading (onAuthStateChange didn't handle it)
+            if (mounted && loading && !profile) {
+              console.log('Fallback: manually fetching profile');
+              setUser(session.user);
+              await handleAuthChange('INITIAL_SESSION', session.user.id);
+            }
+          }, 500);
+        }
+      } catch (err) {
+        console.error('Init session error:', err);
+        if (mounted) {
+          setError('Terjadi kesalahan.');
+          setLoading(false);
+        }
+      }
+    };
+
+    initSession();
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [fetchProfile]);
+  }, []);
 
   const signIn = async (email: string, password: string) => {
+    setError(null);
+    setLoading(true);
+
     if (isDemoMode) {
-      // Demo mode: login sebagai owner atau karyawan berdasarkan email
       const role = email.includes('karyawan') ? 'karyawan' : 'owner';
       setUser(DEMO_USER);
       setProfile(DEMO_PROFILES[role]);
+      setLoading(false);
       return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) throw error;
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (signInError) throw signInError;
+      // onAuthStateChange will handle the rest
+    } catch (err) {
+      setLoading(false);
+      throw err;
+    }
   };
 
   const signOut = async () => {
@@ -197,10 +216,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    const { error: signOutError } = await supabase.auth.signOut();
+    if (signOutError) throw signOutError;
     setUser(null);
     setProfile(null);
+    setError(null);
   };
 
   return (
