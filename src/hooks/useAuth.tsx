@@ -29,8 +29,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     let mounted = true;
+    let profileFetched = false; // Flag untuk hindari double fetch
 
-    // 1. Setup listener dulu (tanpa async di dalamnya sebisa mungkin)
+    // Helper function untuk fetch profile
+    const fetchProfile = async (userId: string) => {
+      if (profileFetched) return; // Sudah di-fetch, skip
+      profileFetched = true;
+
+      try {
+        const profileData = await getProfileAfterLogin(userId);
+        if (mounted) {
+          setProfile(profileData || null);
+          if (!profileData) {
+            setError('Profil tidak ditemukan. Hubungi admin.');
+          }
+        }
+      } catch (err) {
+        console.error('Profile fetch error:', err);
+        if (mounted) {
+          setError('Gagal memuat profil. Coba refresh.');
+          setProfile(null);
+        }
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    // 1. Setup listener untuk perubahan auth state
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
@@ -43,48 +68,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfile(null);
           setError(null);
           setLoading(false);
+          profileFetched = false; // Reset flag
           return;
         }
 
-        if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION')) {
-          try {
-            // Hindari deadlock: gunakan setTimeout kecil supaya tidak block
-            const profileData = await getProfileAfterLogin(session.user.id);
-            if (mounted) {
-              setProfile(profileData || null);
-              if (!profileData) {
-                setError('Profil tidak ditemukan. Hubungi admin.');
-              }
-            }
-          } catch (err) {
-            console.error('Profile fetch error:', err);
-            if (mounted) {
-              setError('Gagal memuat profil. Coba refresh.');
-              setProfile(null);
-            }
-          } finally {
-            if (mounted) setLoading(false);
-          }
-        } else if (mounted) {
-          setLoading(false);
+        // Untuk event SIGNED_IN atau TOKEN_REFRESHED, fetch profile
+        if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+          profileFetched = false; // Reset untuk allow re-fetch
+          await fetchProfile(session.user.id);
         }
       }
     );
 
-    // 2. Get initial session (tanpa terlalu banyak fallback)
+    // 2. Get initial session - LANGSUNG fetch profile jika ada session
     const initialize = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-        if (error) {
-          console.error('Get session error:', error);
-          if (mounted) setError('Gagal memuat sesi.');
+        if (sessionError) {
+          console.error('Get session error:', sessionError);
+          if (mounted) {
+            setError('Gagal memuat sesi.');
+            setLoading(false);
+          }
+          return;
         }
 
-        if (!session && mounted) {
-          setLoading(false);
+        if (session?.user) {
+          // Ada session valid - langsung set user dan fetch profile
+          if (mounted) {
+            setUser(session.user);
+            await fetchProfile(session.user.id);
+          }
+        } else {
+          // Tidak ada session - selesai loading
+          if (mounted) {
+            setLoading(false);
+          }
         }
-        // Jika ada session, onAuthStateChange seharusnya sudah handle INITIAL_SESSION
       } catch (err) {
         console.error('Init error:', err);
         if (mounted) {
@@ -100,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);   // ← dependency kosong adalah yang benar di sini
+  }, []);
 
   // signIn dan signOut tetap sama, tapi pastikan setLoading(false) selalu dipanggil
   const signIn = async (email: string, password: string) => {
