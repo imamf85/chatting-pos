@@ -1,7 +1,6 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase, isDemoMode } from '../lib/supabase';
-import { getProfileAfterLogin } from '../lib/auth';
 import type { UserProfile } from '../types';
 
 interface AuthContextType {
@@ -9,12 +8,14 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   error: string | null;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: () => Promise<void>;
   signOut: () => Promise<void>;
   isDemoMode: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const PROFILE_FETCH_TIMEOUT = 5000;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -22,122 +23,208 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Register/fetch profile menggunakan RPC function
+  const registerOrFetchProfile = useCallback(async (authUser: User): Promise<UserProfile | null> => {
+    const email = authUser.email;
+    if (!email) {
+      console.error('[Auth] No email in user object');
+      return null;
+    }
+
+    console.log('[Auth] Registering/fetching profile for:', email);
+
+    const timeoutPromise = new Promise<null>((resolve) => {
+      setTimeout(() => {
+        console.error('[Auth] Profile registration timeout');
+        resolve(null);
+      }, PROFILE_FETCH_TIMEOUT);
+    });
+
+    const registerPromise = (async () => {
+      try {
+        // Panggil RPC function untuk register/cek user
+        const { data, error: rpcError } = await supabase.rpc('register_user_from_allowed_email', {
+          user_email: email,
+          user_id: authUser.id,
+        });
+
+        if (rpcError) {
+          console.error('[Auth] RPC error:', rpcError);
+          // Fallback: coba fetch profile langsung (untuk user yang sudah ada)
+          const { data: profileData, error: profileError } = await supabase
+            .from('user_profile')
+            .select('*')
+            .eq('id', authUser.id)
+            .single();
+
+          if (profileError || !profileData) {
+            console.error('[Auth] Profile fetch error:', profileError);
+            return null;
+          }
+          return profileData as UserProfile;
+        }
+
+        console.log('[Auth] RPC result:', data);
+
+        if (!data.success) {
+          console.error('[Auth] Registration failed:', data.error);
+          // Sign out user yang tidak terdaftar
+          await supabase.auth.signOut();
+          throw new Error(data.error || 'Email tidak terdaftar');
+        }
+
+        return data.profile as UserProfile;
+      } catch (err) {
+        console.error('[Auth] Registration exception:', err);
+        throw err;
+      }
+    })();
+
+    try {
+      const result = await Promise.race([registerPromise, timeoutPromise]);
+      return result;
+    } catch (err) {
+      throw err;
+    }
+  }, []);
+
   useEffect(() => {
     if (isDemoMode) {
+      console.log('[Auth] Demo mode - skipping auth');
       setLoading(false);
       return;
     }
 
     let mounted = true;
-    let profileFetched = false; // Flag untuk hindari double fetch
 
-    // Helper function untuk fetch profile
-    const fetchProfile = async (userId: string) => {
-      if (profileFetched) return; // Sudah di-fetch, skip
-      profileFetched = true;
+    const initializeAuth = async () => {
+      console.log('[Auth] Initializing...');
 
       try {
-        const profileData = await getProfileAfterLogin(userId);
-        if (mounted) {
-          setProfile(profileData || null);
-          if (!profileData) {
-            setError('Profil tidak ditemukan. Hubungi admin.');
-          }
-        }
-      } catch (err) {
-        console.error('Profile fetch error:', err);
-        if (mounted) {
-          setError('Gagal memuat profil. Coba refresh.');
-          setProfile(null);
-        }
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-    // 1. Setup listener untuk perubahan auth state
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
         if (!mounted) return;
 
-        console.log('Auth event:', event);
-
-        setUser(session?.user ?? null);
-
-        if (event === 'SIGNED_OUT') {
-          setProfile(null);
-          setError(null);
+        if (sessionError) {
+          console.error('[Auth] Session error:', sessionError);
+          setError('Gagal memuat sesi.');
           setLoading(false);
-          profileFetched = false; // Reset flag
           return;
         }
 
-        // Untuk event SIGNED_IN atau TOKEN_REFRESHED, fetch profile
-        if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
-          profileFetched = false; // Reset untuk allow re-fetch
-          await fetchProfile(session.user.id);
+        console.log('[Auth] Session:', session ? 'exists' : 'none');
+
+        if (!session?.user) {
+          console.log('[Auth] No session, done loading');
+          setLoading(false);
+          return;
+        }
+
+        setUser(session.user);
+
+        try {
+          const profileData = await registerOrFetchProfile(session.user);
+
+          if (!mounted) return;
+
+          if (profileData) {
+            setProfile(profileData);
+            console.log('[Auth] Profile loaded:', profileData.nama);
+          } else {
+            setError('Profil tidak ditemukan. Hubungi admin.');
+          }
+        } catch (err) {
+          if (!mounted) return;
+          const errorMsg = err instanceof Error ? err.message : 'Gagal memuat profil';
+          setError(errorMsg);
+          setUser(null);
+        }
+
+        if (mounted) {
+          setLoading(false);
+        }
+
+      } catch (err) {
+        console.error('[Auth] Init exception:', err);
+        if (mounted) {
+          setError('Terjadi kesalahan. Coba refresh.');
+          setLoading(false);
+        }
+      }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('[Auth] Event:', event);
+
+        if (!mounted) return;
+
+        if (event === 'SIGNED_OUT') {
+          setUser(null);
+          setProfile(null);
+          setError(null);
+          setLoading(false);
+          return;
+        }
+
+        if (event === 'SIGNED_IN' && session?.user) {
+          setUser(session.user);
+          setLoading(true);
+          setError(null);
+
+          try {
+            const profileData = await registerOrFetchProfile(session.user);
+
+            if (mounted) {
+              if (profileData) {
+                setProfile(profileData);
+              } else {
+                setError('Email tidak terdaftar. Hubungi admin.');
+                setUser(null);
+              }
+              setLoading(false);
+            }
+          } catch (err) {
+            if (mounted) {
+              const errorMsg = err instanceof Error ? err.message : 'Gagal memuat profil';
+              setError(errorMsg);
+              setUser(null);
+              setLoading(false);
+            }
+          }
+        }
+
+        if (event === 'TOKEN_REFRESHED' && session?.user) {
+          setUser(session.user);
         }
       }
     );
 
-    // 2. Get initial session - LANGSUNG fetch profile jika ada session
-    const initialize = async () => {
-      try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-        if (sessionError) {
-          console.error('Get session error:', sessionError);
-          if (mounted) {
-            setError('Gagal memuat sesi.');
-            setLoading(false);
-          }
-          return;
-        }
-
-        if (session?.user) {
-          // Ada session valid - langsung set user dan fetch profile
-          if (mounted) {
-            setUser(session.user);
-            await fetchProfile(session.user.id);
-          }
-        } else {
-          // Tidak ada session - selesai loading
-          if (mounted) {
-            setLoading(false);
-          }
-        }
-      } catch (err) {
-        console.error('Init error:', err);
-        if (mounted) {
-          setError('Terjadi kesalahan inisialisasi.');
-          setLoading(false);
-        }
-      }
-    };
-
-    initialize();
+    initializeAuth();
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [registerOrFetchProfile]);
 
-  // signIn dan signOut tetap sama, tapi pastikan setLoading(false) selalu dipanggil
-  const signIn = async (email: string, password: string) => {
+  const signIn = async () => {
     setError(null);
     setLoading(true);
 
     if (isDemoMode) {
-      // ... demo logic
       setLoading(false);
       return;
     }
 
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      const { error: signInError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/order`,
+        },
+      });
       if (signInError) throw signInError;
-      // JANGAN setLoading(false) di sini → biarkan onAuthStateChange yang handle
     } catch (err) {
       setLoading(false);
       throw err;
@@ -146,10 +233,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     if (isDemoMode) {
-      setUser(null); setProfile(null); return;
+      setUser(null);
+      setProfile(null);
+      return;
     }
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    const { error: signOutError } = await supabase.auth.signOut();
+    if (signOutError) throw signOutError;
   };
 
   return (

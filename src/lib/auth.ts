@@ -2,12 +2,14 @@ import { supabase } from './supabase';
 import type { UserProfile } from '../types';
 
 /**
- * Login dengan email/username dan password
+ * Login dengan Google OAuth
  */
-export async function signIn(email: string, password: string) {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
+export async function signInWithGoogle(redirectTo?: string) {
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: redirectTo || `${window.location.origin}/order`,
+    },
   });
 
   if (error) throw error;
