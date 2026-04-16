@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase, isDemoMode } from '../lib/supabase';
 import type { UserProfile } from '../types';
@@ -21,7 +21,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Prevent duplicate profile fetches
+  const profileFetchingRef = useRef<string | null>(null);
+  const initializedRef = useRef(false);
+
   // Cek email di allowed_emails dan buat/ambil profile
+  // Returns profile data atau null jika email tidak allowed
   const checkAndCreateProfile = useCallback(async (authUser: User): Promise<UserProfile | null> => {
     const email = authUser.email?.toLowerCase();
     if (!email) {
@@ -29,6 +34,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return null;
     }
 
+    // Prevent duplicate fetches for same user
+    if (profileFetchingRef.current === authUser.id) {
+      console.log('[Auth] Profile fetch already in progress for:', email);
+      return null; // Return null, the ongoing fetch will handle state
+    }
+
+    profileFetchingRef.current = authUser.id;
     console.log('[Auth] Checking allowed email:', email);
 
     try {
@@ -41,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (allowedError || !allowedData) {
         console.error('[Auth] Email not in allowed list:', allowedError);
+        profileFetchingRef.current = null;
         return null;
       }
 
@@ -55,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (existingProfile) {
         console.log('[Auth] Existing profile found');
+        profileFetchingRef.current = null;
         return existingProfile as UserProfile;
       }
 
@@ -73,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (insertError) {
         console.error('[Auth] Profile insert error:', insertError);
+        profileFetchingRef.current = null;
         return null;
       }
 
@@ -83,13 +98,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('email', email);
 
       console.log('[Auth] Profile created:', newProfile);
+      profileFetchingRef.current = null;
       return newProfile as UserProfile;
 
     } catch (err) {
       console.error('[Auth] checkAndCreateProfile error:', err);
+      profileFetchingRef.current = null;
       return null;
     }
   }, []);
+
+  // Helper function to handle user session and profile
+  const handleUserSession = useCallback(async (
+    authUser: User,
+    mounted: { current: boolean },
+    source: string
+  ) => {
+    console.log(`[Auth] handleUserSession from ${source}:`, authUser.email);
+
+    setUser(authUser);
+    setLoading(true);
+    setError(null);
+
+    const profileData = await checkAndCreateProfile(authUser);
+
+    if (!mounted.current) return;
+
+    if (profileData) {
+      setProfile(profileData);
+      setError(null);
+      console.log('[Auth] Ready - user:', profileData.nama);
+    } else {
+      // Only set error if this was the first/only fetch attempt
+      // (profileFetchingRef is null means we completed the fetch)
+      if (profileFetchingRef.current === null) {
+        setError('Email tidak terdaftar. Hubungi admin untuk mendapatkan akses.');
+        console.log('[Auth] Email not allowed');
+      }
+    }
+
+    setLoading(false);
+  }, [checkAndCreateProfile]);
 
   useEffect(() => {
     if (isDemoMode) {
@@ -98,84 +147,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    let mounted = true;
+    const mounted = { current: true };
 
-    const initializeAuth = async () => {
-      console.log('[Auth] Initializing...');
-
-      try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-        if (!mounted) return;
-
-        if (sessionError) {
-          console.error('[Auth] Session error:', sessionError);
-          setLoading(false);
-          return;
-        }
-
-        console.log('[Auth] Session:', session ? `exists (${session.user.email})` : 'none');
-
-        if (!session?.user) {
-          setLoading(false);
-          return;
-        }
-
-        setUser(session.user);
-
-        // Cek dan buat profile
-        const profileData = await checkAndCreateProfile(session.user);
-
-        if (!mounted) return;
-
-        if (profileData) {
-          setProfile(profileData);
-          setError(null);
-          console.log('[Auth] Ready - user:', profileData.nama);
-        } else {
-          setError('Email tidak terdaftar. Hubungi admin untuk mendapatkan akses.');
-          console.log('[Auth] Email not allowed');
-        }
-
-        setLoading(false);
-
-      } catch (err) {
-        console.error('[Auth] Init error:', err);
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    };
-
+    // Set up auth state change listener FIRST (before getSession)
+    // This ensures we catch the INITIAL_SESSION event
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('[Auth] Event:', event, session?.user?.email);
 
-        if (!mounted) return;
+        if (!mounted.current) return;
 
         if (event === 'SIGNED_OUT') {
           setUser(null);
           setProfile(null);
           setError(null);
           setLoading(false);
+          initializedRef.current = false;
+          profileFetchingRef.current = null;
           return;
         }
 
-        if (event === 'SIGNED_IN' && session?.user) {
-          setUser(session.user);
-          setLoading(true);
-          setError(null);
-
-          const profileData = await checkAndCreateProfile(session.user);
-
-          if (mounted) {
-            if (profileData) {
-              setProfile(profileData);
-            } else {
-              setError('Email tidak terdaftar. Hubungi admin untuk mendapatkan akses.');
-            }
-            setLoading(false);
+        // Handle INITIAL_SESSION (page load with existing session)
+        // and SIGNED_IN (new login, including OAuth redirect)
+        if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && session?.user) {
+          // Skip if already initialized with same user
+          if (initializedRef.current && user?.id === session.user.id) {
+            console.log('[Auth] Already initialized, skipping duplicate');
+            return;
           }
+
+          initializedRef.current = true;
+          await handleUserSession(session.user, mounted, event);
+          return;
+        }
+
+        // Handle INITIAL_SESSION with no session (user not logged in)
+        if (event === 'INITIAL_SESSION' && !session) {
+          console.log('[Auth] No session on initial load');
+          initializedRef.current = true;
+          setLoading(false);
+          return;
         }
 
         if (event === 'TOKEN_REFRESHED' && session?.user) {
@@ -184,13 +195,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    initializeAuth();
+    // Fallback: If INITIAL_SESSION doesn't fire within 100ms, check session manually
+    // This handles edge cases where the event might not fire
+    const fallbackTimer = setTimeout(async () => {
+      if (!initializedRef.current && mounted.current) {
+        console.log('[Auth] Fallback: checking session manually');
+
+        try {
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+          if (!mounted.current || initializedRef.current) return;
+
+          if (sessionError) {
+            console.error('[Auth] Session error:', sessionError);
+            setLoading(false);
+            return;
+          }
+
+          if (session?.user) {
+            initializedRef.current = true;
+            await handleUserSession(session.user, mounted, 'fallback');
+          } else {
+            console.log('[Auth] No session (fallback)');
+            setLoading(false);
+          }
+        } catch (err) {
+          console.error('[Auth] Fallback error:', err);
+          if (mounted.current) {
+            setLoading(false);
+          }
+        }
+      }
+    }, 100);
 
     return () => {
-      mounted = false;
+      mounted.current = false;
+      clearTimeout(fallbackTimer);
       subscription.unsubscribe();
     };
-  }, [checkAndCreateProfile]);
+  }, [handleUserSession, user?.id]);
 
   const signIn = async () => {
     setError(null);
