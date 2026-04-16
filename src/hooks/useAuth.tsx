@@ -15,76 +15,79 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const PROFILE_FETCH_TIMEOUT = 5000;
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Register/fetch profile menggunakan RPC function
-  const registerOrFetchProfile = useCallback(async (authUser: User): Promise<UserProfile | null> => {
-    const email = authUser.email;
+  // Cek email di allowed_emails dan buat/ambil profile
+  const checkAndCreateProfile = useCallback(async (authUser: User): Promise<UserProfile | null> => {
+    const email = authUser.email?.toLowerCase();
     if (!email) {
       console.error('[Auth] No email in user object');
       return null;
     }
 
-    console.log('[Auth] Registering/fetching profile for:', email);
-
-    const timeoutPromise = new Promise<null>((resolve) => {
-      setTimeout(() => {
-        console.error('[Auth] Profile registration timeout');
-        resolve(null);
-      }, PROFILE_FETCH_TIMEOUT);
-    });
-
-    const registerPromise = (async () => {
-      try {
-        // Panggil RPC function untuk register/cek user
-        const { data, error: rpcError } = await supabase.rpc('register_user_from_allowed_email', {
-          user_email: email,
-          user_id: authUser.id,
-        });
-
-        if (rpcError) {
-          console.error('[Auth] RPC error:', rpcError);
-          // Fallback: coba fetch profile langsung (untuk user yang sudah ada)
-          const { data: profileData, error: profileError } = await supabase
-            .from('user_profile')
-            .select('*')
-            .eq('id', authUser.id)
-            .single();
-
-          if (profileError || !profileData) {
-            console.error('[Auth] Profile fetch error:', profileError);
-            return null;
-          }
-          return profileData as UserProfile;
-        }
-
-        console.log('[Auth] RPC result:', data);
-
-        if (!data.success) {
-          console.error('[Auth] Registration failed:', data.error);
-          // Sign out user yang tidak terdaftar
-          await supabase.auth.signOut();
-          throw new Error(data.error || 'Email tidak terdaftar');
-        }
-
-        return data.profile as UserProfile;
-      } catch (err) {
-        console.error('[Auth] Registration exception:', err);
-        throw err;
-      }
-    })();
+    console.log('[Auth] Checking allowed email:', email);
 
     try {
-      const result = await Promise.race([registerPromise, timeoutPromise]);
-      return result;
+      // 1. Cek apakah email ada di allowed_emails
+      const { data: allowedData, error: allowedError } = await supabase
+        .from('allowed_emails')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      if (allowedError || !allowedData) {
+        console.error('[Auth] Email not in allowed list:', allowedError);
+        return null;
+      }
+
+      console.log('[Auth] Email allowed:', allowedData.nama, allowedData.role);
+
+      // 2. Cek apakah profile sudah ada
+      const { data: existingProfile } = await supabase
+        .from('user_profile')
+        .select('*')
+        .eq('id', authUser.id)
+        .single();
+
+      if (existingProfile) {
+        console.log('[Auth] Existing profile found');
+        return existingProfile as UserProfile;
+      }
+
+      // 3. Buat profile baru
+      console.log('[Auth] Creating new profile...');
+      const { data: newProfile, error: insertError } = await supabase
+        .from('user_profile')
+        .insert({
+          id: authUser.id,
+          nama: allowedData.nama,
+          role: allowedData.role,
+          lapak_id: allowedData.lapak_id,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('[Auth] Profile insert error:', insertError);
+        return null;
+      }
+
+      // 4. Update registered_at di allowed_emails
+      await supabase
+        .from('allowed_emails')
+        .update({ registered_at: new Date().toISOString() })
+        .eq('email', email);
+
+      console.log('[Auth] Profile created:', newProfile);
+      return newProfile as UserProfile;
+
     } catch (err) {
-      throw err;
+      console.error('[Auth] checkAndCreateProfile error:', err);
+      return null;
     }
   }, []);
 
@@ -107,47 +110,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (sessionError) {
           console.error('[Auth] Session error:', sessionError);
-          setError('Gagal memuat sesi.');
           setLoading(false);
           return;
         }
 
-        console.log('[Auth] Session:', session ? 'exists' : 'none');
+        console.log('[Auth] Session:', session ? `exists (${session.user.email})` : 'none');
 
         if (!session?.user) {
-          console.log('[Auth] No session, done loading');
           setLoading(false);
           return;
         }
 
         setUser(session.user);
 
-        try {
-          const profileData = await registerOrFetchProfile(session.user);
+        // Cek dan buat profile
+        const profileData = await checkAndCreateProfile(session.user);
 
-          if (!mounted) return;
+        if (!mounted) return;
 
-          if (profileData) {
-            setProfile(profileData);
-            console.log('[Auth] Profile loaded:', profileData.nama);
-          } else {
-            setError('Profil tidak ditemukan. Hubungi admin.');
-          }
-        } catch (err) {
-          if (!mounted) return;
-          const errorMsg = err instanceof Error ? err.message : 'Gagal memuat profil';
-          setError(errorMsg);
-          setUser(null);
+        if (profileData) {
+          setProfile(profileData);
+          setError(null);
+          console.log('[Auth] Ready - user:', profileData.nama);
+        } else {
+          setError('Email tidak terdaftar. Hubungi admin untuk mendapatkan akses.');
+          console.log('[Auth] Email not allowed');
         }
 
-        if (mounted) {
-          setLoading(false);
-        }
+        setLoading(false);
 
       } catch (err) {
-        console.error('[Auth] Init exception:', err);
+        console.error('[Auth] Init error:', err);
         if (mounted) {
-          setError('Terjadi kesalahan. Coba refresh.');
           setLoading(false);
         }
       }
@@ -155,7 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('[Auth] Event:', event);
+        console.log('[Auth] Event:', event, session?.user?.email);
 
         if (!mounted) return;
 
@@ -172,25 +166,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLoading(true);
           setError(null);
 
-          try {
-            const profileData = await registerOrFetchProfile(session.user);
+          const profileData = await checkAndCreateProfile(session.user);
 
-            if (mounted) {
-              if (profileData) {
-                setProfile(profileData);
-              } else {
-                setError('Email tidak terdaftar. Hubungi admin.');
-                setUser(null);
-              }
-              setLoading(false);
+          if (mounted) {
+            if (profileData) {
+              setProfile(profileData);
+            } else {
+              setError('Email tidak terdaftar. Hubungi admin untuk mendapatkan akses.');
             }
-          } catch (err) {
-            if (mounted) {
-              const errorMsg = err instanceof Error ? err.message : 'Gagal memuat profil';
-              setError(errorMsg);
-              setUser(null);
-              setLoading(false);
-            }
+            setLoading(false);
           }
         }
 
@@ -206,13 +190,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [registerOrFetchProfile]);
+  }, [checkAndCreateProfile]);
 
   const signIn = async () => {
     setError(null);
     setLoading(true);
 
     if (isDemoMode) {
+      setError('Demo mode: Setup Supabase untuk mengaktifkan login.');
       setLoading(false);
       return;
     }
