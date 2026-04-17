@@ -48,24 +48,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     console.log('[Auth] Initializing...', window.location.pathname);
 
-    // Function to fetch/create profile
-    const fetchProfile = async (authUser: User): Promise<UserProfile | null> => {
+    // Helper: wait for a bit
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+    // Function to fetch/create profile with retry
+    const fetchProfile = async (authUser: User, retryCount = 0): Promise<UserProfile | null> => {
       const email = authUser.email?.toLowerCase();
       if (!email) {
         console.error('[Auth] No email in user');
         return null;
       }
 
-      // Skip if already fetching for this user
-      if (fetchingForUserRef.current === authUser.id) {
+      // Skip if already fetching for this user (but allow retries)
+      if (fetchingForUserRef.current === authUser.id && retryCount === 0) {
         console.log('[Auth] Already fetching for this user, skipping');
         return null;
       }
 
       fetchingForUserRef.current = authUser.id;
-      console.log('[Auth] Fetching profile for:', email);
+      console.log('[Auth] Fetching profile for:', email, retryCount > 0 ? `(retry ${retryCount})` : '');
 
       try {
+        // Small delay to let Supabase auth settle (prevents lock contention)
+        if (retryCount === 0) {
+          await delay(100);
+        }
+
         // 1. Check allowed_emails
         const { data: allowed, error: allowedErr } = await supabase
           .from('allowed_emails')
@@ -73,8 +81,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .eq('email', email)
           .single();
 
-        if (allowedErr || !allowed) {
+        if (allowedErr) {
+          // Check if it's a lock error - retry if so
+          if (allowedErr.message?.includes('Lock') && retryCount < 3) {
+            console.log('[Auth] Lock error, retrying in 500ms...');
+            await delay(500);
+            return fetchProfile(authUser, retryCount + 1);
+          }
           console.error('[Auth] Email not allowed:', allowedErr?.message);
+          fetchingForUserRef.current = null;
+          return null;
+        }
+
+        if (!allowed) {
+          console.error('[Auth] Email not in allowed list');
           fetchingForUserRef.current = null;
           return null;
         }
@@ -142,6 +162,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       setUser(authUser);
+
+      // Wait a bit for Supabase auth to fully settle before making DB queries
+      // This prevents lock contention errors
+      await delay(200);
+
+      if (isCancelled) return;
 
       const profileData = await fetchProfile(authUser);
 
