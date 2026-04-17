@@ -24,13 +24,25 @@ export default function KembalianBox({ total, onPaymentComplete }: KembalianBoxP
   };
 
   const handleCustomChange = (value: string) => {
-    setCustomInput(value);
-    const parsed = parseInt(value, 10);
+    // Remove non-numeric characters for cleaner input
+    const cleanValue = value.replace(/\D/g, '');
+    setCustomInput(cleanValue);
+
+    const parsed = parseInt(cleanValue, 10);
     if (!isNaN(parsed) && parsed > 0) {
-      setBayar(parsed);
+      // User inputs full rupiah (e.g., 50000), convert to ribuan for internal use
+      setBayar(Math.floor(parsed / 1000));
     } else {
       setBayar('');
     }
+  };
+
+  // Format input display with thousand separators
+  const formatInputDisplay = (value: string) => {
+    if (!value) return '';
+    const num = parseInt(value, 10);
+    if (isNaN(num)) return value;
+    return num.toLocaleString('id-ID');
   };
 
   const handleConfirm = () => {
@@ -43,14 +55,9 @@ export default function KembalianBox({ total, onPaymentComplete }: KembalianBoxP
     return `Rp ${(ribuan * 1000).toLocaleString('id-ID')}`;
   };
 
-  const formatShort = (ribuan: number) => {
-    if (ribuan >= 1000) {
-      return `${ribuan / 1000}jt`;
-    }
-    if (ribuan >= 100) {
-      return `${ribuan}rb`;
-    }
-    return `${ribuan}k`;
+  // Format nominal button (show full rupiah without "Rp" prefix)
+  const formatNominal = (ribuan: number) => {
+    return (ribuan * 1000).toLocaleString('id-ID');
   };
 
   // Status styling
@@ -111,23 +118,26 @@ export default function KembalianBox({ total, onPaymentComplete }: KembalianBoxP
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
               }`}
             >
-              {formatShort(nominal)}
+              {formatNominal(nominal)}
             </button>
           ))}
         </div>
 
         {/* Custom input */}
         <div className="mt-4">
-          <input
-            type="number"
-            inputMode="numeric"
-            value={customInput}
-            onChange={(e) => handleCustomChange(e.target.value)}
-            placeholder="Atau ketik nominal lain (ribu)..."
-            className="w-full px-4 py-4 bg-gray-100 dark:bg-gray-700 border-0 rounded-2xl
-                       focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white dark:focus:bg-gray-600
-                       text-base font-medium text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-all"
-          />
+          <div className="relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 font-medium">Rp</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={formatInputDisplay(customInput)}
+              onChange={(e) => handleCustomChange(e.target.value)}
+              placeholder="Ketik nominal lain..."
+              className="w-full pl-12 pr-4 py-4 bg-gray-100 dark:bg-gray-700 border-0 rounded-2xl
+                         focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white dark:focus:bg-gray-600
+                         text-base font-medium text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-all"
+            />
+          </div>
         </div>
       </div>
 
