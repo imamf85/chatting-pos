@@ -55,7 +55,7 @@ export default function Rekap() {
 
             <Link
               to="/order"
-              className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-emerald-500 transition-colors"
+              className="px-3 py-5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-emerald-500 transition-colors"
             >
               Order
             </Link>

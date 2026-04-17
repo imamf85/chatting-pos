@@ -324,11 +324,10 @@ export default function Order() {
               <button
                 onClick={printerConnected ? handleDisconnectPrinter : handleConnectPrinter}
                 disabled={connectingPrinter}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
-                  printerConnected
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${printerConnected
                     ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
+                  }`}
                 title={printerConnected ? `Connected: ${printerName}` : 'Connect Printer'}
               >
                 {connectingPrinter ? (
@@ -348,7 +347,7 @@ export default function Order() {
 
             <Link
               to="/rekap"
-              className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-emerald-500 transition-colors"
+              className="px-3 py-5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-emerald-500 transition-colors"
             >
               Rekap
             </Link>
@@ -487,11 +486,10 @@ export default function Order() {
           <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900">
             {/* Completion Card */}
             <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl overflow-hidden">
-              <div className={`p-8 text-center ${
-                savedOrder.paymentMethod === 'qris'
+              <div className={`p-8 text-center ${savedOrder.paymentMethod === 'qris'
                   ? 'bg-gradient-to-r from-purple-500 to-indigo-500'
                   : 'bg-gradient-to-r from-green-500 to-emerald-500'
-              }`}>
+                }`}>
                 <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
                   <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -540,11 +538,10 @@ export default function Order() {
                 <button
                   onClick={printerConnected ? handleDisconnectPrinter : handleConnectPrinter}
                   disabled={connectingPrinter}
-                  className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl font-medium transition-all ${
-                    printerConnected
+                  className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl font-medium transition-all ${printerConnected
                       ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-2 border-green-200 dark:border-green-700'
                       : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-2 border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700'
-                  }`}
+                    }`}
                 >
                   {connectingPrinter ? (
                     <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
