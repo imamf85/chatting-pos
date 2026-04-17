@@ -15,6 +15,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Sentinel value to indicate fetch was skipped (not an error)
+const FETCH_SKIPPED = Symbol('FETCH_SKIPPED');
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -23,6 +26,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Track which user we're currently fetching profile for
   const fetchingForUserRef = useRef<string | null>(null);
+  // Track which user's profile has been successfully fetched
+  const profileFetchedForRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (isDemoMode) {
@@ -52,17 +57,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
     // Function to fetch/create profile with retry
-    const fetchProfile = async (authUser: User, retryCount = 0): Promise<UserProfile | null> => {
+    const fetchProfile = async (authUser: User, retryCount = 0): Promise<UserProfile | typeof FETCH_SKIPPED | null> => {
       const email = authUser.email?.toLowerCase();
       if (!email) {
         console.error('[Auth] No email in user');
         return null;
       }
 
+      // Skip if profile already fetched for this user
+      if (profileFetchedForRef.current === authUser.id) {
+        console.log('[Auth] Profile already fetched for this user, skipping');
+        return FETCH_SKIPPED;
+      }
+
       // Skip if already fetching for this user (but allow retries)
       if (fetchingForUserRef.current === authUser.id && retryCount === 0) {
         console.log('[Auth] Already fetching for this user, skipping');
-        return null;
+        return FETCH_SKIPPED;
       }
 
       fetchingForUserRef.current = authUser.id;
@@ -183,16 +194,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // If fetch was skipped, don't update any state
+      if (profileData === FETCH_SKIPPED) {
+        console.log('[Auth] Fetch skipped, keeping current state');
+        setLoading(false);
+        return;
+      }
+
       if (profileData) {
         setProfile(profileData);
         setError(null);
+        profileFetchedForRef.current = authUser.id;
         console.log('[Auth] Ready:', profileData.nama);
       } else {
         setProfile(null);
-        // Only set error if we actually completed the fetch (not skipped)
-        if (fetchingForUserRef.current === null) {
-          setError('Email tidak terdaftar. Hubungi admin untuk mendapatkan akses.');
-        }
+        setError('Email tidak terdaftar. Hubungi admin untuk mendapatkan akses.');
       }
 
       setLoading(false);
@@ -211,6 +227,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setError(null);
           setLoading(false);
           fetchingForUserRef.current = null;
+          profileFetchedForRef.current = null;
           return;
         }
 
@@ -262,6 +279,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    // Reset refs
+    fetchingForUserRef.current = null;
+    profileFetchedForRef.current = null;
+
     if (isDemoMode) {
       setUser(null);
       setProfile(null);
