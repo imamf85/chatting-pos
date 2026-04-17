@@ -69,26 +69,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('[Auth] Fetching profile for:', email, retryCount > 0 ? `(retry ${retryCount})` : '');
 
       try {
-        // Small delay to let Supabase auth settle (prevents lock contention)
-        if (retryCount === 0) {
-          await delay(100);
-        }
-
         // 1. Check allowed_emails
-        const { data: allowed, error: allowedErr } = await supabase
+        console.log('[Auth] Querying allowed_emails...');
+
+        const allowedPromise = supabase
           .from('allowed_emails')
           .select('*')
           .eq('email', email)
           .single();
 
+        // Add timeout to prevent hanging forever
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Query timeout after 10s')), 10000)
+        );
+
+        const result = await Promise.race([
+          allowedPromise,
+          timeoutPromise
+        ]) as { data: { nama: string; role: string; lapak_id: string | null } | null; error: { message?: string } | null };
+
+        const allowed = result.data;
+        const allowedErr = result.error;
+
+        console.log('[Auth] allowed_emails result:', { allowed, error: allowedErr });
+
         if (allowedErr) {
+          const errMsg = (allowedErr as Error).message || String(allowedErr);
           // Check if it's a lock error - retry if so
-          if (allowedErr.message?.includes('Lock') && retryCount < 3) {
+          if (errMsg.includes('Lock') && retryCount < 3) {
             console.log('[Auth] Lock error, retrying in 500ms...');
             await delay(500);
             return fetchProfile(authUser, retryCount + 1);
           }
-          console.error('[Auth] Email not allowed:', allowedErr?.message);
+          console.error('[Auth] allowed_emails error:', errMsg);
           fetchingForUserRef.current = null;
           return null;
         }
@@ -162,12 +175,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       setUser(authUser);
-
-      // Wait a bit for Supabase auth to fully settle before making DB queries
-      // This prevents lock contention errors
-      await delay(200);
-
-      if (isCancelled) return;
 
       const profileData = await fetchProfile(authUser);
 
