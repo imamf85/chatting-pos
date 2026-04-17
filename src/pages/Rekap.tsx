@@ -22,12 +22,12 @@ export default function Rekap() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+    <div className="h-[100dvh] bg-gray-50 dark:bg-gray-900 flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <h1 className="text-lg font-bold text-emerald-600">AL BEWOK</h1>
+            <h1 className="hidden sm:block text-lg font-bold text-emerald-600">AL BEWOK</h1>
             {profile?.role === 'owner' && <LapakSwitcher />}
           </div>
 
@@ -76,9 +76,11 @@ export default function Rekap() {
         </div>
       )}
 
-      {/* Main Content */}
-      <main className="flex-1 p-4 max-w-lg mx-auto w-full overflow-y-auto">
-        <RekapDashboard />
+      {/* Main Content - Scrollable */}
+      <main className="flex-1 overflow-y-auto">
+        <div className="p-4 max-w-lg mx-auto w-full pb-8">
+          <RekapDashboard />
+        </div>
       </main>
     </div>
   );

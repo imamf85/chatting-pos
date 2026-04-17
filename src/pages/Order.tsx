@@ -293,7 +293,7 @@ export default function Order() {
       <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 pt-3 pb-2 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-emerald-600">AL BEWOK</h1>
+            <h1 className="hidden sm:block text-xl font-bold text-emerald-600">AL BEWOK</h1>
             {profile?.role === 'owner' && <LapakSwitcher />}
           </div>
 
