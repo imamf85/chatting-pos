@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState, useMemo } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import type { ReactNode } from 'react';
 
@@ -12,7 +12,20 @@ const LOADING_TIMEOUT_MS = 10000;
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, profile, loading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [loadingTimeout, setLoadingTimeout] = useState(false);
+
+  // Check if current URL is an OAuth callback (has code param or access_token in hash)
+  const isOAuthCallback = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    const hash = location.hash;
+    const hasCode = params.has('code');
+    const hasToken = hash.includes('access_token');
+    if (hasCode || hasToken) {
+      console.log('[ProtectedRoute] OAuth callback detected, not redirecting');
+    }
+    return hasCode || hasToken;
+  }, [location.search, location.hash]);
 
   // Timeout for loading state
   useEffect(() => {
@@ -26,18 +39,23 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   }, [loading]);
 
   // Redirect to login if:
-  // 1. Not loading AND no user
+  // 1. Not loading AND no user AND not OAuth callback
   // 2. Not loading AND user exists but no profile (email not allowed)
   useEffect(() => {
+    // Don't redirect while OAuth callback is being processed
+    if (isOAuthCallback && loading) {
+      return;
+    }
+
     if (!loading) {
-      if (!user) {
+      if (!user && !isOAuthCallback) {
         navigate('/login', { replace: true });
       } else if (user && !profile) {
         // User logged in but email not allowed - redirect to login to show error
         navigate('/login', { replace: true });
       }
     }
-  }, [user, profile, loading, navigate]);
+  }, [user, profile, loading, navigate, isOAuthCallback]);
 
   // Show timeout state
   if (loadingTimeout && loading) {

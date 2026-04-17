@@ -149,8 +149,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const mounted = { current: true };
 
-    // Set up auth state change listener FIRST (before getSession)
-    // This ensures we catch the INITIAL_SESSION event
+    // Check if this is an OAuth callback (has code in URL or access_token in hash)
+    const getOAuthParams = () => {
+      const params = new URLSearchParams(window.location.search);
+      const hash = window.location.hash;
+      const code = params.get('code');
+      const hasToken = hash.includes('access_token');
+      return { code, hasToken, isCallback: !!(code || hasToken) };
+    };
+
+    const oauthParams = getOAuthParams();
+    if (oauthParams.isCallback) {
+      console.log('[Auth] Detected OAuth callback:', {
+        hasCode: !!oauthParams.code,
+        hasToken: oauthParams.hasToken,
+        url: window.location.href
+      });
+    }
+
+    // Handle OAuth code exchange explicitly if needed
+    const handleOAuthCodeExchange = async () => {
+      if (oauthParams.code) {
+        console.log('[Auth] Attempting to exchange code for session...');
+        try {
+          const { data, error } = await supabase.auth.exchangeCodeForSession(oauthParams.code);
+          if (error) {
+            console.error('[Auth] Code exchange error:', error);
+            return null;
+          }
+          console.log('[Auth] Code exchange successful:', data.user?.email);
+          return data.session;
+        } catch (err) {
+          console.error('[Auth] Code exchange exception:', err);
+          return null;
+        }
+      }
+      return null;
+    };
+
+    // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('[Auth] Event:', event, session?.user?.email);
@@ -181,8 +218,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        // Handle INITIAL_SESSION with no session (user not logged in)
+        // Handle INITIAL_SESSION with no session
         if (event === 'INITIAL_SESSION' && !session) {
+          // If this is an OAuth callback with code, try to exchange it manually
+          if (oauthParams.code) {
+            console.log('[Auth] INITIAL_SESSION with no session, but has code. Exchanging...');
+            const exchangedSession = await handleOAuthCodeExchange();
+            if (exchangedSession?.user && mounted.current) {
+              initializedRef.current = true;
+              await handleUserSession(exchangedSession.user, mounted, 'code-exchange');
+              // Clean up URL by removing code parameter
+              const cleanUrl = window.location.pathname;
+              window.history.replaceState({}, '', cleanUrl);
+              return;
+            }
+            // If exchange failed, fall through to error handling
+            console.log('[Auth] Code exchange did not return session');
+          }
+
+          // If this is an OAuth callback (with token in hash), wait a bit for processing
+          if (oauthParams.hasToken) {
+            console.log('[Auth] OAuth callback with hash token, waiting...');
+            return; // Keep loading=true, wait for SIGNED_IN
+          }
+
           console.log('[Auth] No session on initial load');
           initializedRef.current = true;
           setLoading(false);
@@ -195,11 +254,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // Fallback: If INITIAL_SESSION doesn't fire within 100ms, check session manually
-    // This handles edge cases where the event might not fire
+    // Fallback timeout - if OAuth callback doesn't complete within 5s, something went wrong
     const fallbackTimer = setTimeout(async () => {
       if (!initializedRef.current && mounted.current) {
-        console.log('[Auth] Fallback: checking session manually');
+        console.log('[Auth] Fallback: checking session manually after timeout');
 
         try {
           const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -208,6 +266,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           if (sessionError) {
             console.error('[Auth] Session error:', sessionError);
+            setError('Gagal memuat sesi. Silakan coba lagi.');
             setLoading(false);
             return;
           }
@@ -217,16 +276,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await handleUserSession(session.user, mounted, 'fallback');
           } else {
             console.log('[Auth] No session (fallback)');
+            if (oauthParams.isCallback) {
+              setError('Login gagal. Silakan coba lagi.');
+            }
             setLoading(false);
           }
         } catch (err) {
           console.error('[Auth] Fallback error:', err);
           if (mounted.current) {
+            setError('Terjadi kesalahan. Silakan coba lagi.');
             setLoading(false);
           }
         }
       }
-    }, 100);
+    }, oauthParams.isCallback ? 5000 : 100); // Longer timeout for OAuth callbacks
 
     return () => {
       mounted.current = false;
