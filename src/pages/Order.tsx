@@ -528,8 +528,37 @@ export default function Order() {
               </div>
             </div>
 
-            {/* Print buttons */}
+            {/* Printer & Print buttons */}
             <div className="mt-6 space-y-3">
+              {/* Bluetooth Printer Status - same as header */}
+              {bluetoothPrinter.isSupported() && (
+                <button
+                  onClick={printerConnected ? handleDisconnectPrinter : handleConnectPrinter}
+                  disabled={connectingPrinter}
+                  className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl font-medium transition-all ${
+                    printerConnected
+                      ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-2 border-green-200 dark:border-green-700'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-2 border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {connectingPrinter ? (
+                    <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+                      />
+                    </svg>
+                  )}
+                  {printerConnected ? (
+                    <span>Printer: {printerName} <span className="text-xs">(Tap untuk disconnect)</span></span>
+                  ) : (
+                    <span>Hubungkan Printer Bluetooth</span>
+                  )}
+                </button>
+              )}
+
+              {/* Print buttons when connected */}
               {printerConnected && (
                 <div className="grid grid-cols-2 gap-3">
                   <button
@@ -571,25 +600,30 @@ export default function Order() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-3">
-                {!printerConnected && (
-                  <button
-                    onClick={() => handlePrint('customer')}
-                    className="py-4 px-4 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-semibold
-                               rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all active:scale-95 shadow-sm"
-                  >
-                    Print
-                  </button>
-                )}
+              {/* Browser print fallback when not connected */}
+              {!printerConnected && (
                 <button
-                  onClick={handleNewOrder}
-                  className={`py-4 px-4 bg-emerald-500 text-white font-semibold
-                             rounded-2xl hover:bg-emerald-600 transition-all active:scale-95 shadow-lg
-                             ${printerConnected ? 'col-span-2' : ''}`}
+                  onClick={() => handlePrint('customer')}
+                  className="w-full py-3 px-4 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-semibold
+                             rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all active:scale-95 shadow-sm flex items-center justify-center gap-2"
                 >
-                  + Order Baru
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+                    />
+                  </svg>
+                  Print via Browser
                 </button>
-              </div>
+              )}
+
+              {/* New Order Button */}
+              <button
+                onClick={handleNewOrder}
+                className="w-full py-4 px-4 bg-emerald-500 text-white font-semibold
+                           rounded-2xl hover:bg-emerald-600 transition-all active:scale-95 shadow-lg"
+              >
+                + Order Baru
+              </button>
             </div>
           </div>
         )}
