@@ -18,6 +18,44 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // Sentinel value to indicate fetch was skipped (not an error)
 const FETCH_SKIPPED = Symbol('FETCH_SKIPPED');
 
+// Cache keys
+const CACHE_KEY_PROFILE = 'albewok_profile';
+const CACHE_KEY_USER_ID = 'albewok_user_id';
+
+// Helper to get cached profile
+function getCachedProfile(): { userId: string; profile: UserProfile } | null {
+  try {
+    const userId = localStorage.getItem(CACHE_KEY_USER_ID);
+    const profileStr = localStorage.getItem(CACHE_KEY_PROFILE);
+    if (userId && profileStr) {
+      return { userId, profile: JSON.parse(profileStr) };
+    }
+  } catch {
+    // Ignore cache errors
+  }
+  return null;
+}
+
+// Helper to set cached profile
+function setCachedProfile(userId: string, profile: UserProfile) {
+  try {
+    localStorage.setItem(CACHE_KEY_USER_ID, userId);
+    localStorage.setItem(CACHE_KEY_PROFILE, JSON.stringify(profile));
+  } catch {
+    // Ignore cache errors
+  }
+}
+
+// Helper to clear cached profile
+function clearCachedProfile() {
+  try {
+    localStorage.removeItem(CACHE_KEY_USER_ID);
+    localStorage.removeItem(CACHE_KEY_PROFILE);
+  } catch {
+    // Ignore cache errors
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -52,6 +90,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     console.log('[Auth] Initializing...', window.location.pathname);
+
+    // Try to load from cache first for instant UI
+    const cached = getCachedProfile();
+    if (cached) {
+      console.log('[Auth] Found cached profile for:', cached.profile.nama);
+      // We'll verify this in background after getSession
+    }
 
     // Helper: wait for a bit
     const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -205,10 +250,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(profileData);
         setError(null);
         profileFetchedForRef.current = authUser.id;
+        setCachedProfile(authUser.id, profileData);
         console.log('[Auth] Ready:', profileData.nama);
       } else {
         setProfile(null);
         setError('Email tidak terdaftar. Hubungi admin untuk mendapatkan akses.');
+        clearCachedProfile();
       }
 
       setLoading(false);
@@ -228,6 +275,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLoading(false);
           fetchingForUserRef.current = null;
           profileFetchedForRef.current = null;
+          clearCachedProfile();
           return;
         }
 
@@ -246,6 +294,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
     );
+
+    // Immediately check for existing session (don't wait for event)
+    // This speeds up the initial load significantly
+    const initSession = async () => {
+      console.log('[Auth] Checking existing session...');
+
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+        if (isCancelled) return;
+
+        if (sessionError) {
+          console.error('[Auth] getSession error:', sessionError);
+          setLoading(false);
+          return;
+        }
+
+        if (session?.user) {
+          // Check if we have a valid cache for this user
+          if (cached && cached.userId === session.user.id) {
+            console.log('[Auth] Using cached profile, verifying in background...');
+            setUser(session.user);
+            setProfile(cached.profile);
+            profileFetchedForRef.current = session.user.id;
+            setLoading(false);
+
+            // Verify in background (don't await)
+            handleSession(session.user, 'CACHE_VERIFY').catch(console.error);
+          } else {
+            // No valid cache, fetch normally
+            await handleSession(session.user, 'INIT');
+          }
+        } else {
+          // No session
+          console.log('[Auth] No existing session');
+          clearCachedProfile();
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error('[Auth] initSession error:', err);
+        if (!isCancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    initSession();
 
     return () => {
       isCancelled = true;
@@ -279,9 +374,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    // Reset refs
+    // Reset refs and cache
     fetchingForUserRef.current = null;
     profileFetchedForRef.current = null;
+    clearCachedProfile();
 
     if (isDemoMode) {
       setUser(null);
