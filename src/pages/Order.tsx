@@ -59,6 +59,11 @@ export default function Order() {
     return () => clearInterval(interval);
   }, [checkPrinterStatus]);
 
+  // Ensure page starts at top on mobile
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   // Connect to Bluetooth printer
   const handleConnectPrinter = async () => {
     setConnectingPrinter(true);
@@ -283,9 +288,9 @@ export default function Order() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
+    <div className="h-[100dvh] flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
       {/* Header - Compact for mobile */}
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex-shrink-0 safe-area-top">
+      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 pt-3 pb-2 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-emerald-600">AL BEWOK</h1>
