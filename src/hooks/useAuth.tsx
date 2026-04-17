@@ -159,11 +159,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const oauthParams = getOAuthParams();
+
+    // Debug: log current URL and PKCE state
+    console.log('[Auth] Page load:', {
+      url: window.location.href,
+      pathname: window.location.pathname,
+      search: window.location.search,
+      hash: window.location.hash ? '(has hash)' : '(no hash)',
+      isCallback: oauthParams.isCallback,
+      hasCodeVerifier: !!localStorage.getItem('supabase.auth.code_verifier')
+    });
+
     if (oauthParams.isCallback) {
       console.log('[Auth] Detected OAuth callback:', {
         hasCode: !!oauthParams.code,
-        hasToken: oauthParams.hasToken,
-        url: window.location.href
+        hasToken: oauthParams.hasToken
       });
     }
 
@@ -308,15 +318,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    const redirectUrl = `${window.location.origin}/order`;
+    console.log('[Auth] signIn called, redirectTo:', redirectUrl);
+
     try {
-      const { error: signInError } = await supabase.auth.signInWithOAuth({
+      const { data, error: signInError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/order`,
+          redirectTo: redirectUrl,
         },
       });
+      console.log('[Auth] signInWithOAuth result:', { url: data?.url, error: signInError });
       if (signInError) throw signInError;
     } catch (err) {
+      console.error('[Auth] signIn error:', err);
       setLoading(false);
       throw err;
     }
