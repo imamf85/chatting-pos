@@ -22,6 +22,9 @@ interface OrderChatProps {
   onOrderParsed: (items: ParsedItem[], namaCustomer: string) => void;
   completedOrders?: CompletedOrder[];
   onOrderSelect?: (order: CompletedOrder) => void;
+  onOrderEdit?: (order: CompletedOrder) => void;
+  onCancelEdit?: () => void;
+  editingOrder?: CompletedOrder | null;
 }
 
 type ChatState = 'idle' | 'waitingVarian' | 'waitingUkuran' | 'parsing';
@@ -33,7 +36,7 @@ interface Message {
   order?: CompletedOrder;
 }
 
-export default function OrderChat({ onOrderParsed, completedOrders = [], onOrderSelect }: OrderChatProps) {
+export default function OrderChat({ onOrderParsed, completedOrders = [], onOrderSelect, onOrderEdit, onCancelEdit, editingOrder }: OrderChatProps) {
   const [input, setInput] = useState('');
   const [chatState, setChatState] = useState<ChatState>('idle');
   const [pendingItems, setPendingItems] = useState<ParsedItem[]>([]);
@@ -65,12 +68,14 @@ export default function OrderChat({ onOrderParsed, completedOrders = [], onOrder
     {
       id: 'welcome',
       type: 'system',
-      text: completedOrders.length > 0
-        ? 'Ketik pesanan baru di bawah 👇'
-        : 'Halo! Ketik pesanan seperti di WhatsApp ya 👋\n\nContoh:\n• "2 sig jumbo pedas"\n• "PESENAN A.N BUDI: ori 3 sedang & 2 pedas"',
+      text: editingOrder
+        ? `Ketik pesanan baru untuk mengganti isi order #TX-${String(editingOrder.txNumber).padStart(3, '0')} ✏️\n\nContoh:\n• "2 sig jumbo pedas"\n• "ori 3 sedang & 2 pedas"`
+        : completedOrders.length > 0
+          ? 'Ketik pesanan baru di bawah 👇'
+          : 'Halo! Ketik pesanan seperti di WhatsApp ya 👋\n\nContoh:\n• "2 sig jumbo pedas"\n• "PESENAN A.N BUDI: ori 3 sedang & 2 pedas"',
     },
-    // Order history
-    ...buildOrderMessages(),
+    // Order history (hide when editing to focus on the edit task)
+    ...(editingOrder ? [] : buildOrderMessages()),
     // Current conversation
     ...conversationMessages,
   ];
@@ -311,6 +316,29 @@ export default function OrderChat({ onOrderParsed, completedOrders = [], onOrder
 
   return (
     <div className="flex flex-col h-full bg-gradient-to-b from-emerald-50 to-white dark:from-gray-800 dark:to-gray-900">
+      {/* Editing Banner */}
+      {editingOrder && (
+        <div className="bg-amber-500 px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-white">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            <span className="font-medium text-sm">
+              Edit #TX-{String(editingOrder.txNumber).padStart(3, '0')}
+              {editingOrder.namaCustomer && ` - ${editingOrder.namaCustomer}`}
+            </span>
+          </div>
+          {onCancelEdit && (
+            <button
+              onClick={onCancelEdit}
+              className="px-3 py-1 bg-white/20 hover:bg-white/30 text-white text-sm font-medium rounded-lg transition-all"
+            >
+              Batal
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {allMessages.map((msg) => (
@@ -393,21 +421,34 @@ export default function OrderChat({ onOrderParsed, completedOrders = [], onOrder
                       </span>
                     </div>
 
-                    {/* Selesai Button */}
-                    {onOrderSelect && (
-                      <button
-                        onClick={() => onOrderSelect(msg.order!)}
-                        disabled={msg.order.status === 'completed'}
-                        className={`mt-3 w-full py-2.5 rounded-xl font-semibold text-sm transition-all ${
-                          msg.order.status === 'completed'
-                            ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                            : msg.order.paymentMethod === 'qris'
-                              ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50 active:scale-95'
-                              : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50 active:scale-95'
-                        }`}
-                      >
-                        {msg.order.status === 'completed' ? '✓ Selesai' : 'Selesai'}
-                      </button>
+                    {/* Action Buttons */}
+                    {(onOrderSelect || onOrderEdit) && (
+                      <div className="mt-3 flex gap-2">
+                        {/* Lihat Detail Button */}
+                        {onOrderSelect && (
+                          <button
+                            onClick={() => onOrderSelect(msg.order!)}
+                            className="flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all
+                                       bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300
+                                       hover:bg-gray-200 dark:hover:bg-gray-600 active:scale-95"
+                          >
+                            Lihat Detail
+                          </button>
+                        )}
+                        {/* Edit Button */}
+                        {onOrderEdit && (
+                          <button
+                            onClick={() => onOrderEdit(msg.order!)}
+                            className={`flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all
+                                       ${msg.order.paymentMethod === 'qris'
+                                         ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50'
+                                         : 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/50'
+                                       } active:scale-95`}
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -469,6 +510,8 @@ export default function OrderChat({ onOrderParsed, completedOrders = [], onOrder
                 ? 'Atau ketik varian...'
                 : chatState === 'waitingUkuran'
                 ? 'Atau ketik ukuran...'
+                : editingOrder
+                ? 'Ketik pesanan baru untuk mengganti...'
                 : 'Ketik pesanan di sini...'
             }
             rows={1}

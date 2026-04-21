@@ -43,6 +43,9 @@ export default function Order() {
   // Completed orders for chat history
   const [completedOrders, setCompletedOrders] = useState<CompletedOrder[]>([]);
 
+  // Editing order state
+  const [editingOrder, setEditingOrder] = useState<CompletedOrder | null>(null);
+
   // Demo mode tx number counter
   const demoTxCounter = useRef(1);
 
@@ -147,7 +150,91 @@ export default function Order() {
   const handleSaveOrder = async (items: OrderItem[], nama: string, total: number) => {
     if (!activeLapak) return;
 
-    // Demo mode - simpan lokal saja
+    // Check if we're editing an existing order
+    if (editingOrder) {
+      // Demo mode - update lokal saja
+      if (isDemoMode) {
+        // Update local completed orders
+        setCompletedOrders((prev) =>
+          prev.map((o) =>
+            o.id === editingOrder.id
+              ? { ...o, items, namaCustomer: nama, total, bayar: 0, kembalian: 0, paymentMethod: null, status: 'pending' as const }
+              : o
+          )
+        );
+        setSavedOrder({ items, nama, total, txNumber: editingOrder.txNumber, bayar: 0, kembalian: 0, transaksiId: editingOrder.id });
+        setEditingOrder(null);
+        setPageState('selectPayment');
+        return;
+      }
+
+      try {
+        // 1. Delete old items
+        const { error: deleteError } = await supabase
+          .from('transaksi_item')
+          .delete()
+          .eq('transaksi_id', editingOrder.id);
+
+        if (deleteError) throw deleteError;
+
+        // 2. Insert new items
+        const itemsToInsert = items.map((item) => ({
+          transaksi_id: editingOrder.id,
+          varian: item.varian,
+          daging: item.daging,
+          ukuran: item.ukuran,
+          kepedasan: item.kepedasan,
+          toppings: item.toppings,
+          catatan: item.catatan,
+          qty: item.qty,
+          harga_satuan: item.harga_satuan,
+          subtotal: item.subtotal,
+        }));
+
+        const { error: itemsError } = await supabase
+          .from('transaksi_item')
+          .insert(itemsToInsert);
+
+        if (itemsError) throw itemsError;
+
+        // 3. Update transaksi (reset bayar/kembalian, update total and nama)
+        const { error: updateError } = await supabase
+          .from('transaksi')
+          .update({
+            nama_customer: nama,
+            total: total,
+            bayar: 0,
+            kembalian: 0,
+            payment_method: null,
+            status: 'pending',
+          })
+          .eq('id', editingOrder.id);
+
+        if (updateError) throw updateError;
+
+        console.log('[Order] Edit completed:', editingOrder.id);
+
+        // 4. Update local completed orders
+        setCompletedOrders((prev) =>
+          prev.map((o) =>
+            o.id === editingOrder.id
+              ? { ...o, items, namaCustomer: nama, total, bayar: 0, kembalian: 0, paymentMethod: null, status: 'pending' as const }
+              : o
+          )
+        );
+
+        // 5. Set saved order for payment flow
+        setSavedOrder({ items, nama, total, txNumber: editingOrder.txNumber, bayar: 0, kembalian: 0, transaksiId: editingOrder.id });
+        setEditingOrder(null);
+        setPageState('selectPayment');
+      } catch (error) {
+        console.error('Error updating order:', error);
+        alert('Gagal mengupdate order. Coba lagi.');
+      }
+      return;
+    }
+
+    // Demo mode - simpan lokal saja (new order)
     if (isDemoMode) {
       const txNumber = demoTxCounter.current++;
       setSavedOrder({ items, nama, total, txNumber, bayar: 0, kembalian: 0 });
@@ -383,32 +470,13 @@ export default function Order() {
     setParsedItems([]);
     setNamaCustomer('');
     setSavedOrder(null);
+    setEditingOrder(null);
     setPageState('chat');
   };
 
-  // Handle selecting a completed order from chat history (Selesai button)
-  const handleOrderSelect = async (order: CompletedOrder) => {
-    // If order is pending, update status to completed in database
-    if (order.status === 'pending' && !isDemoMode) {
-      try {
-        const { error } = await supabase
-          .from('transaksi')
-          .update({ status: 'completed' })
-          .eq('id', order.id);
-
-        if (error) {
-          console.error('Error updating order status:', error);
-        } else {
-          console.log('[Order] Status updated to completed:', order.id);
-          // Update local state
-          setCompletedOrders((prev) =>
-            prev.map((o) => (o.id === order.id ? { ...o, status: 'completed' } : o))
-          );
-        }
-      } catch (error) {
-        console.error('Error updating order status:', error);
-      }
-    }
+  // Handle selecting a completed order from chat history (Lihat Detail button)
+  const handleOrderSelect = (order: CompletedOrder) => {
+    // Just show the order details in the completed state
 
     setSavedOrder({
       items: order.items,
@@ -423,9 +491,18 @@ export default function Order() {
     setPageState('completed');
   };
 
+  // Handle editing an existing order
+  const handleOrderEdit = (order: CompletedOrder) => {
+    setEditingOrder(order);
+    setParsedItems([]);
+    setNamaCustomer(order.namaCustomer);
+    setPageState('chat');
+  };
+
   const handleCancelOrder = () => {
     setParsedItems([]);
     setNamaCustomer('');
+    setEditingOrder(null);
     setPageState('chat');
   };
 
@@ -528,6 +605,9 @@ export default function Order() {
             onOrderParsed={handleOrderParsed}
             completedOrders={completedOrders}
             onOrderSelect={handleOrderSelect}
+            onOrderEdit={handleOrderEdit}
+            onCancelEdit={editingOrder ? handleCancelOrder : undefined}
+            editingOrder={editingOrder}
           />
         )}
 
