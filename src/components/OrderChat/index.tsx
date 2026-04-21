@@ -397,13 +397,16 @@ export default function OrderChat({ onOrderParsed, completedOrders = [], onOrder
                     {onOrderSelect && (
                       <button
                         onClick={() => onOrderSelect(msg.order!)}
-                        className={`mt-3 w-full py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-95 ${
-                          msg.order.paymentMethod === 'qris'
-                            ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50'
-                            : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
+                        disabled={msg.order.status === 'completed'}
+                        className={`mt-3 w-full py-2.5 rounded-xl font-semibold text-sm transition-all ${
+                          msg.order.status === 'completed'
+                            ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                            : msg.order.paymentMethod === 'qris'
+                              ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50 active:scale-95'
+                              : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50 active:scale-95'
                         }`}
                       >
-                        Selesai
+                        {msg.order.status === 'completed' ? '✓ Selesai' : 'Selesai'}
                       </button>
                     )}
                   </div>
