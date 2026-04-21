@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useActiveLapak } from '../../hooks/useActiveLapak';
+import { useAuth } from '../../hooks/useAuth';
 import type { Transaksi, TransaksiItem } from '../../types';
 import { VARIAN_LABELS, UKURAN_LABELS } from '../../lib/menu';
 
@@ -8,10 +9,30 @@ interface TransaksiWithItems extends Transaksi {
   transaksi_item: TransaksiItem[];
 }
 
+// Helper to format date for input[type="date"]
+function formatDateForInput(date: Date): string {
+  return date.toISOString().split('T')[0];
+}
+
+// Helper to format date for display
+function formatDateDisplay(date: Date): string {
+  return date.toLocaleDateString('id-ID', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+}
+
 export default function RekapDashboard() {
   const { activeLapak } = useActiveLapak();
+  const { profile } = useAuth();
   const [transaksis, setTransaksis] = useState<TransaksiWithItems[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+
+  const isOwner = profile?.role === 'owner';
+  const isToday = formatDateForInput(selectedDate) === formatDateForInput(new Date());
 
   useEffect(() => {
     if (!activeLapak) return;
@@ -19,10 +40,10 @@ export default function RekapDashboard() {
     async function fetchRekap() {
       setLoading(true);
 
-      // Get today's date in local timezone
-      const today = new Date();
-      const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString();
-      const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString();
+      // Use selected date
+      const targetDate = new Date(selectedDate);
+      const startOfDay = new Date(targetDate.setHours(0, 0, 0, 0)).toISOString();
+      const endOfDay = new Date(targetDate.setHours(23, 59, 59, 999)).toISOString();
 
       const { data, error } = await supabase
         .from('transaksi')
@@ -43,7 +64,33 @@ export default function RekapDashboard() {
     }
 
     fetchRekap();
-  }, [activeLapak]);
+  }, [activeLapak, selectedDate]);
+
+  // Handle date change
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newDate = new Date(e.target.value + 'T00:00:00');
+    setSelectedDate(newDate);
+  };
+
+  // Quick date navigation
+  const goToPreviousDay = () => {
+    const prevDay = new Date(selectedDate);
+    prevDay.setDate(prevDay.getDate() - 1);
+    setSelectedDate(prevDay);
+  };
+
+  const goToNextDay = () => {
+    const nextDay = new Date(selectedDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+    // Don't allow future dates
+    if (nextDay <= new Date()) {
+      setSelectedDate(nextDay);
+    }
+  };
+
+  const goToToday = () => {
+    setSelectedDate(new Date());
+  };
 
   // Calculate stats
   const totalOmzet = transaksis.reduce((sum, t) => sum + t.total, 0);
@@ -89,18 +136,71 @@ export default function RekapDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Lapak name */}
+      {/* Lapak name & Date */}
       <div className="text-center">
         <h2 className="text-xl font-bold text-gray-900 dark:text-white">{activeLapak?.nama}</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Rekap Hari Ini - {new Date().toLocaleDateString('id-ID', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric'
-          })}
+          {isToday ? 'Rekap Hari Ini' : 'Rekap'} - {formatDateDisplay(selectedDate)}
         </p>
       </div>
+
+      {/* Date Picker - Owner Only */}
+      {isOwner && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="flex items-center justify-between gap-2">
+            {/* Previous Day Button */}
+            <button
+              onClick={goToPreviousDay}
+              className="p-2 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300
+                         hover:bg-gray-200 dark:hover:bg-gray-600 transition-all active:scale-95"
+              title="Hari sebelumnya"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+
+            {/* Date Input */}
+            <div className="flex-1 flex items-center justify-center gap-2">
+              <input
+                type="date"
+                value={formatDateForInput(selectedDate)}
+                onChange={handleDateChange}
+                max={formatDateForInput(new Date())}
+                className="px-3 py-2 bg-gray-100 dark:bg-gray-700 border-0 rounded-xl text-center
+                           text-gray-900 dark:text-gray-100 font-medium
+                           focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              {!isToday && (
+                <button
+                  onClick={goToToday}
+                  className="px-3 py-2 text-sm font-medium text-emerald-600 dark:text-emerald-400
+                             bg-emerald-50 dark:bg-emerald-900/30 rounded-xl
+                             hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-all"
+                >
+                  Hari Ini
+                </button>
+              )}
+            </div>
+
+            {/* Next Day Button */}
+            <button
+              onClick={goToNextDay}
+              disabled={isToday}
+              className={`p-2 rounded-xl transition-all active:scale-95 ${
+                isToday
+                  ? 'bg-gray-50 dark:bg-gray-800 text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+              title="Hari berikutnya"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 gap-4">
@@ -159,7 +259,7 @@ export default function RekapDashboard() {
 
         {transaksis.length === 0 ? (
           <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-            Belum ada transaksi hari ini
+            {isToday ? 'Belum ada transaksi hari ini' : 'Tidak ada transaksi pada tanggal ini'}
           </div>
         ) : (
           <div className="divide-y divide-gray-100 dark:divide-gray-700">
