@@ -11,6 +11,7 @@ import KembalianBox from '../components/KembalianBox';
 import { printReceipt } from '../lib/print';
 import bluetoothPrinter from '../lib/bluetoothPrinter';
 import receiptFormatter from '../lib/receiptFormatter';
+import { VARIAN_LABELS, UKURAN_LABELS, DAGING_LABELS } from '../lib/menu';
 import type { ParsedItem, OrderItem, Transaksi, PaymentMethod } from '../types';
 
 type PageState = 'chat' | 'confirmOrder' | 'selectPayment' | 'cashPayment' | 'completed';
@@ -721,48 +722,84 @@ export default function Order() {
 
         {pageState === 'completed' && savedOrder && (
           <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900">
-            {/* Completion Card */}
+            {/* Order Detail Card */}
             <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl overflow-hidden">
-              <div className={`p-8 text-center ${savedOrder.paymentMethod === 'qris'
+              {/* Header */}
+              <div className={`px-6 py-4 ${savedOrder.paymentMethod === 'qris'
                   ? 'bg-gradient-to-r from-purple-500 to-indigo-500'
                   : 'bg-gradient-to-r from-green-500 to-emerald-500'
                 }`}>
-                <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <div className="text-white text-2xl font-bold">Selesai!</div>
-                <div className="text-white/80 mt-1">
-                  #TX-{String(savedOrder.txNumber).padStart(3, '0')}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-white text-lg font-bold">
+                      #TX-{String(savedOrder.txNumber).padStart(3, '0')}
+                    </div>
+                    {savedOrder.nama && (
+                      <div className="text-white/80 text-sm">a.n. {savedOrder.nama}</div>
+                    )}
+                  </div>
                   {savedOrder.paymentMethod && (
-                    <span className="ml-2 px-2 py-0.5 bg-white/20 rounded-full text-sm">
+                    <span className="px-3 py-1 bg-white/20 rounded-full text-white text-sm font-medium">
                       {savedOrder.paymentMethod === 'qris' ? 'QRIS' : 'CASH'}
                     </span>
                   )}
                 </div>
               </div>
 
-              <div className="p-6 space-y-4">
+              {/* Order Items */}
+              <div className="p-4 border-b border-gray-100 dark:border-gray-700">
+                <div className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Rincian Pesanan</div>
+                <div className="space-y-3">
+                  {savedOrder.items.map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900 dark:text-white">
+                          {item.qty}x {VARIAN_LABELS[item.varian]} {UKURAN_LABELS[item.ukuran]}
+                        </div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                          {DAGING_LABELS[item.daging]} • {item.kepedasan}
+                          {item.toppings.length > 0 && ` • +${item.toppings.join(', ')}`}
+                        </div>
+                        {item.catatan && (
+                          <div className="text-sm text-amber-600 dark:text-amber-400 italic">
+                            {item.catatan}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <div className="font-medium text-gray-900 dark:text-white">
+                          Rp {(item.subtotal * 1000).toLocaleString('id-ID')}
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          @Rp {(item.harga_satuan * 1000).toLocaleString('id-ID')}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Payment Summary */}
+              <div className="p-4 space-y-2">
                 <div className="flex justify-between text-lg">
                   <span className="text-gray-500 dark:text-gray-400">Total</span>
                   <span className="font-bold text-gray-900 dark:text-white">Rp {(savedOrder.total * 1000).toLocaleString('id-ID')}</span>
                 </div>
                 {savedOrder.paymentMethod === 'cash' && (
                   <>
-                    <div className="flex justify-between text-lg">
+                    <div className="flex justify-between">
                       <span className="text-gray-500 dark:text-gray-400">Bayar</span>
                       <span className="font-medium text-gray-700 dark:text-gray-300">Rp {(savedOrder.bayar * 1000).toLocaleString('id-ID')}</span>
                     </div>
-                    <div className="flex justify-between text-lg">
+                    <div className="flex justify-between">
                       <span className="text-gray-500 dark:text-gray-400">Kembali</span>
                       <span className="font-bold text-green-600 dark:text-green-400">Rp {(savedOrder.kembalian * 1000).toLocaleString('id-ID')}</span>
                     </div>
                   </>
                 )}
                 {savedOrder.paymentMethod === 'qris' && (
-                  <div className="text-center py-2">
-                    <span className="text-purple-600 dark:text-purple-400 font-medium">Pembayaran via QRIS</span>
+                  <div className="text-center py-1">
+                    <span className="text-purple-600 dark:text-purple-400 text-sm">Pembayaran via QRIS</span>
                   </div>
                 )}
               </div>
