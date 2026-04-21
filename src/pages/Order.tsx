@@ -5,7 +5,7 @@ import { useActiveLapak } from '../hooks/useActiveLapak';
 import { useTheme } from '../hooks/useTheme';
 import { supabase, isDemoMode } from '../lib/supabase';
 import LapakSwitcher from '../components/LapakSwitcher';
-import OrderChat from '../components/OrderChat';
+import OrderChat, { type CompletedOrder } from '../components/OrderChat';
 import OrderCard from '../components/OrderCard';
 import KembalianBox from '../components/KembalianBox';
 import { printReceipt } from '../lib/print';
@@ -40,8 +40,62 @@ export default function Order() {
   const [connectingPrinter, setConnectingPrinter] = useState(false);
   const [printing, setPrinting] = useState(false);
 
+  // Completed orders for chat history
+  const [completedOrders, setCompletedOrders] = useState<CompletedOrder[]>([]);
+
   // Demo mode tx number counter
   const demoTxCounter = useRef(1);
+
+  // Fetch today's completed orders
+  useEffect(() => {
+    if (!activeLapak || isDemoMode) return;
+
+    const lapakId = activeLapak.id;
+
+    async function fetchTodayOrders() {
+      const today = new Date();
+      const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString();
+      const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString();
+
+      const { data, error } = await supabase
+        .from('transaksi')
+        .select(`
+          *,
+          transaksi_item (*)
+        `)
+        .eq('lapak_id', lapakId)
+        .gte('created_at', startOfDay)
+        .lte('created_at', endOfDay)
+        .order('created_at', { ascending: true });
+
+      if (!error && data) {
+        const orders: CompletedOrder[] = data.map((tx: any) => ({
+          id: tx.id,
+          txNumber: tx.tx_number,
+          namaCustomer: tx.nama_customer || '',
+          items: tx.transaksi_item.map((item: any) => ({
+            varian: item.varian,
+            daging: item.daging,
+            ukuran: item.ukuran,
+            kepedasan: item.kepedasan,
+            toppings: item.toppings || [],
+            catatan: item.catatan || '',
+            qty: item.qty,
+            harga_satuan: item.harga_satuan,
+            subtotal: item.subtotal,
+          })),
+          total: tx.total,
+          bayar: tx.bayar,
+          kembalian: tx.kembalian,
+          paymentMethod: tx.payment_method,
+          createdAt: tx.created_at,
+        }));
+        setCompletedOrders(orders);
+      }
+    }
+
+    fetchTodayOrders();
+  }, [activeLapak]);
 
   // Check printer status periodically
   const checkPrinterStatus = useCallback(() => {
@@ -195,12 +249,27 @@ export default function Order() {
     }
 
     // Update local state after successful DB update
-    setSavedOrder({
+    const updatedOrder = {
       ...savedOrder,
       bayar: bayarAmount,
       kembalian: kembalianAmount,
       paymentMethod
-    });
+    };
+    setSavedOrder(updatedOrder);
+
+    // Add to completed orders list for chat history
+    const newCompletedOrder: CompletedOrder = {
+      id: savedOrder.transaksiId || `demo-${Date.now()}`,
+      txNumber: savedOrder.txNumber,
+      namaCustomer: savedOrder.nama,
+      items: savedOrder.items,
+      total: savedOrder.total,
+      bayar: bayarAmount,
+      kembalian: kembalianAmount,
+      paymentMethod,
+      createdAt: new Date().toISOString(),
+    };
+    setCompletedOrders((prev) => [...prev, newCompletedOrder]);
 
     setPageState('completed');
   };
@@ -238,7 +307,23 @@ export default function Order() {
     }
 
     // Update local state after successful DB update
-    setSavedOrder({ ...savedOrder, bayar, kembalian, paymentMethod });
+    const updatedOrder = { ...savedOrder, bayar, kembalian, paymentMethod };
+    setSavedOrder(updatedOrder);
+
+    // Add to completed orders list for chat history
+    const newCompletedOrder: CompletedOrder = {
+      id: savedOrder.transaksiId || `demo-${Date.now()}`,
+      txNumber: savedOrder.txNumber,
+      namaCustomer: savedOrder.nama,
+      items: savedOrder.items,
+      total: savedOrder.total,
+      bayar,
+      kembalian,
+      paymentMethod,
+      createdAt: new Date().toISOString(),
+    };
+    setCompletedOrders((prev) => [...prev, newCompletedOrder]);
+
     setPageState('completed');
   };
 
@@ -397,7 +482,7 @@ export default function Order() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
         {pageState === 'chat' && (
-          <OrderChat onOrderParsed={handleOrderParsed} />
+          <OrderChat onOrderParsed={handleOrderParsed} completedOrders={completedOrders} />
         )}
 
         {pageState === 'confirmOrder' && (

@@ -1,40 +1,92 @@
 import { useState, useRef, useEffect } from 'react';
 import { parseOrder, applyMissingVarian } from '../../lib/parser';
 import { parseWithAI, convertAIResultToItems, isAIEnabled } from '../../lib/aiParser';
-import { VARIAN_OPTIONS, VARIAN_LABELS, UKURAN_OPTIONS, UKURAN_LABELS } from '../../lib/menu';
-import type { ParsedItem, Varian, Ukuran } from '../../types';
+import { VARIAN_OPTIONS, VARIAN_LABELS, UKURAN_OPTIONS, UKURAN_LABELS, DAGING_LABELS } from '../../lib/menu';
+import type { ParsedItem, Varian, Ukuran, OrderItem, PaymentMethod } from '../../types';
+
+// Completed order info for chat display
+export interface CompletedOrder {
+  id: string;
+  txNumber: number;
+  namaCustomer: string;
+  items: OrderItem[];
+  total: number;
+  bayar: number;
+  kembalian: number;
+  paymentMethod: PaymentMethod | null;
+  createdAt: string;
+}
 
 interface OrderChatProps {
   onOrderParsed: (items: ParsedItem[], namaCustomer: string) => void;
+  completedOrders?: CompletedOrder[];
 }
 
 type ChatState = 'idle' | 'waitingVarian' | 'waitingUkuran' | 'parsing';
 
 interface Message {
   id: string;
-  type: 'user' | 'system';
+  type: 'user' | 'system' | 'order-complete';
   text: string;
+  order?: CompletedOrder;
 }
 
-export default function OrderChat({ onOrderParsed }: OrderChatProps) {
+export default function OrderChat({ onOrderParsed, completedOrders = [] }: OrderChatProps) {
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      type: 'system',
-      text: 'Halo! Ketik pesanan seperti di WhatsApp ya 👋\n\nContoh:\n• "2 sig jumbo pedas"\n• "PESENAN A.N BUDI: ori 3 sedang & 2 pedas"',
-    },
-  ]);
   const [chatState, setChatState] = useState<ChatState>('idle');
   const [pendingItems, setPendingItems] = useState<ParsedItem[]>([]);
   const [pendingNama, setPendingNama] = useState('');
+  const [conversationMessages, setConversationMessages] = useState<Message[]>([]);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const prevOrderCountRef = useRef(0);
+
+  // Build messages from completed orders + conversation
+  const buildOrderMessages = (): Message[] => {
+    // Sort orders by createdAt (oldest first)
+    const sortedOrders = [...completedOrders].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+
+    return sortedOrders.map((order) => ({
+      id: `order-${order.id}`,
+      type: 'order-complete' as const,
+      text: '',
+      order,
+    }));
+  };
+
+  // Combine order history with conversation messages
+  const allMessages: Message[] = [
+    // Welcome message
+    {
+      id: 'welcome',
+      type: 'system',
+      text: completedOrders.length > 0
+        ? 'Ketik pesanan baru di bawah 👇'
+        : 'Halo! Ketik pesanan seperti di WhatsApp ya 👋\n\nContoh:\n• "2 sig jumbo pedas"\n• "PESENAN A.N BUDI: ori 3 sedang & 2 pedas"',
+    },
+    // Order history
+    ...buildOrderMessages(),
+    // Current conversation
+    ...conversationMessages,
+  ];
+
+  // Auto-scroll when new orders are added
+  useEffect(() => {
+    if (completedOrders.length > prevOrderCountRef.current) {
+      // New order was added, scroll to bottom
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+    prevOrderCountRef.current = completedOrders.length;
+  }, [completedOrders.length]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [conversationMessages]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -45,10 +97,30 @@ export default function OrderChat({ onOrderParsed }: OrderChatProps) {
   }, [input]);
 
   const addMessage = (type: 'user' | 'system', text: string) => {
-    setMessages((prev) => [
+    setConversationMessages((prev) => [
       ...prev,
       { id: Date.now().toString(), type, text },
     ]);
+  };
+
+  // Clear conversation when new orders are added (they'll show in order history)
+  useEffect(() => {
+    if (completedOrders.length > 0) {
+      setConversationMessages([]);
+    }
+  }, [completedOrders.length]);
+
+  // Format rupiah for display
+  const formatRupiah = (ribuan: number) => {
+    return `Rp ${(ribuan * 1000).toLocaleString('id-ID')}`;
+  };
+
+  // Format time for display
+  const formatTime = (dateStr: string) => {
+    return new Date(dateStr).toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
   const handleSubmit = () => {
@@ -111,7 +183,7 @@ export default function OrderChat({ onOrderParsed }: OrderChatProps) {
           const { items, namaCustomer } = convertAIResultToItems(aiResult);
 
           // Remove the "processing" message
-          setMessages((prev) => prev.slice(0, -1));
+          setConversationMessages((prev) => prev.slice(0, -1));
 
           checkAndAskClarification(items, namaCustomer);
           return;
@@ -119,7 +191,7 @@ export default function OrderChat({ onOrderParsed }: OrderChatProps) {
       } catch (error) {
         console.error('AI parsing failed, falling back to regex:', error);
         // Remove the "processing" message and continue with fallback
-        setMessages((prev) => prev.slice(0, -1));
+        setConversationMessages((prev) => prev.slice(0, -1));
       }
     }
 
@@ -239,20 +311,89 @@ export default function OrderChat({ onOrderParsed }: OrderChatProps) {
     <div className="flex flex-col h-full bg-gradient-to-b from-emerald-50 to-white dark:from-gray-800 dark:to-gray-900">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
-            <div
-              className={`max-w-[85%] px-4 py-3 whitespace-pre-wrap text-[15px] leading-relaxed ${
-                msg.type === 'user'
-                  ? 'bg-emerald-500 text-white rounded-2xl rounded-br-md shadow-sm'
-                  : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-2xl rounded-bl-md shadow-md border border-gray-100 dark:border-gray-700'
-              }`}
-            >
-              {msg.text}
-            </div>
+        {allMessages.map((msg) => (
+          <div key={msg.id}>
+            {/* Regular messages (user/system) */}
+            {(msg.type === 'user' || msg.type === 'system') && (
+              <div className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  className={`max-w-[85%] px-4 py-3 whitespace-pre-wrap text-[15px] leading-relaxed ${
+                    msg.type === 'user'
+                      ? 'bg-emerald-500 text-white rounded-2xl rounded-br-md shadow-sm'
+                      : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-2xl rounded-bl-md shadow-md border border-gray-100 dark:border-gray-700'
+                  }`}
+                >
+                  {msg.text}
+                </div>
+              </div>
+            )}
+
+            {/* Completed order bubble */}
+            {msg.type === 'order-complete' && msg.order && (
+              <div className="flex justify-end">
+                <div className="max-w-[90%] rounded-2xl rounded-br-md shadow-lg overflow-hidden">
+                  {/* Order Header */}
+                  <div className={`px-4 py-2 flex items-center justify-between gap-3 ${
+                    msg.order.paymentMethod === 'qris'
+                      ? 'bg-gradient-to-r from-purple-500 to-indigo-500'
+                      : 'bg-gradient-to-r from-green-500 to-emerald-500'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span className="text-white font-semibold">
+                        #TX-{String(msg.order.txNumber).padStart(3, '0')}
+                      </span>
+                      {msg.order.namaCustomer && (
+                        <span className="text-white/80 text-sm">
+                          • {msg.order.namaCustomer}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-white/80 text-xs">
+                        {formatTime(msg.order.createdAt)}
+                      </span>
+                      {msg.order.paymentMethod && (
+                        <span className="px-2 py-0.5 bg-white/20 rounded-full text-white text-xs font-medium">
+                          {msg.order.paymentMethod === 'qris' ? 'QRIS' : 'CASH'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Order Items */}
+                  <div className="bg-white dark:bg-gray-800 px-4 py-3">
+                    <div className="space-y-2">
+                      {msg.order.items.map((item, idx) => (
+                        <div key={idx} className="flex justify-between items-start text-sm">
+                          <div>
+                            <span className="text-gray-900 dark:text-white font-medium">
+                              {item.qty}x {VARIAN_LABELS[item.varian]} {UKURAN_LABELS[item.ukuran]}
+                            </span>
+                            <div className="text-gray-500 dark:text-gray-400 text-xs">
+                              {DAGING_LABELS[item.daging]} • {item.kepedasan}
+                            </div>
+                          </div>
+                          <span className="text-gray-600 dark:text-gray-300 font-medium">
+                            {formatRupiah(item.subtotal)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Total */}
+                    <div className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
+                      <span className="text-gray-500 dark:text-gray-400 text-sm">Total</span>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                        {formatRupiah(msg.order.total)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ))}
         <div ref={messagesEndRef} />
