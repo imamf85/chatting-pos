@@ -302,6 +302,16 @@ export default function RekapDashboard() {
                             a.n. {tx.nama_customer}
                           </span>
                         )}
+                        {/* Payment Method Badge */}
+                        {tx.payment_method && (
+                          <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                            tx.payment_method === 'qris'
+                              ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+                              : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+                          }`}>
+                            {tx.payment_method === 'qris' ? 'QRIS' : 'CASH'}
+                          </span>
+                        )}
                       </div>
                       <span className="text-sm text-gray-500 dark:text-gray-400">
                         {formatTime(tx.created_at)}

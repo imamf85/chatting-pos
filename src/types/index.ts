@@ -5,6 +5,7 @@ export type Daging = 'chicken' | 'beef klasik' | 'beef premium';
 export type Ukuran = 'small' | 'reguler' | 'jumbo';
 export type Kepedasan = 'tidak pedas' | 'sedang' | 'pedas';
 export type Role = 'owner' | 'karyawan';
+export type PaymentMethod = 'qris' | 'cash';
 
 export interface Lapak {
   id: string;
@@ -47,6 +48,7 @@ export interface Transaksi {
   total: number; // dalam ribuan
   bayar: number;
   kembalian: number;
+  payment_method: PaymentMethod | null;
   created_at: string;
 }
 

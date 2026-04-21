@@ -11,10 +11,9 @@ import KembalianBox from '../components/KembalianBox';
 import { printReceipt } from '../lib/print';
 import bluetoothPrinter from '../lib/bluetoothPrinter';
 import receiptFormatter from '../lib/receiptFormatter';
-import type { ParsedItem, OrderItem, Transaksi } from '../types';
+import type { ParsedItem, OrderItem, Transaksi, PaymentMethod } from '../types';
 
 type PageState = 'chat' | 'confirmOrder' | 'selectPayment' | 'cashPayment' | 'completed';
-type PaymentMethod = 'qris' | 'cash';
 
 export default function Order() {
   const { profile, signOut } = useAuth();
@@ -125,6 +124,7 @@ export default function Order() {
         .from('transaksi')
         .insert({
           lapak_id: activeLapak.id,
+          created_by: profile?.id || null,
           tx_number: txNumber,
           nama_customer: nama,
           total: total,
@@ -171,13 +171,14 @@ export default function Order() {
     // QRIS: bayar = total, kembalian = 0
     const bayarAmount = savedOrder.total;
     const kembalianAmount = 0;
+    const paymentMethod: PaymentMethod = 'qris';
 
     // Update database FIRST if not demo mode
     if (!isDemoMode && savedOrder.transaksiId) {
       try {
         const { error } = await supabase
           .from('transaksi')
-          .update({ bayar: bayarAmount, kembalian: kembalianAmount })
+          .update({ bayar: bayarAmount, kembalian: kembalianAmount, payment_method: paymentMethod })
           .eq('id', savedOrder.transaksiId);
 
         if (error) {
@@ -185,7 +186,7 @@ export default function Order() {
           alert('Gagal update pembayaran. Coba lagi.');
           return;
         }
-        console.log('[Payment] QRIS payment updated:', { bayar: bayarAmount, kembalian: kembalianAmount });
+        console.log('[Payment] QRIS payment updated:', { bayar: bayarAmount, kembalian: kembalianAmount, payment_method: paymentMethod });
       } catch (error) {
         console.error('Error updating payment:', error);
         alert('Gagal update pembayaran. Coba lagi.');
@@ -198,7 +199,7 @@ export default function Order() {
       ...savedOrder,
       bayar: bayarAmount,
       kembalian: kembalianAmount,
-      paymentMethod: 'qris' as PaymentMethod
+      paymentMethod
     });
 
     setPageState('completed');
@@ -213,12 +214,14 @@ export default function Order() {
   const handlePaymentComplete = async (bayar: number, kembalian: number) => {
     if (!savedOrder) return;
 
+    const paymentMethod: PaymentMethod = 'cash';
+
     // Update database FIRST if not demo mode
     if (!isDemoMode && savedOrder.transaksiId) {
       try {
         const { error } = await supabase
           .from('transaksi')
-          .update({ bayar, kembalian })
+          .update({ bayar, kembalian, payment_method: paymentMethod })
           .eq('id', savedOrder.transaksiId);
 
         if (error) {
@@ -226,7 +229,7 @@ export default function Order() {
           alert('Gagal update pembayaran. Coba lagi.');
           return;
         }
-        console.log('[Payment] Cash payment updated:', { bayar, kembalian });
+        console.log('[Payment] Cash payment updated:', { bayar, kembalian, payment_method: paymentMethod });
       } catch (error) {
         console.error('Error updating payment:', error);
         alert('Gagal update pembayaran. Coba lagi.');
@@ -235,7 +238,7 @@ export default function Order() {
     }
 
     // Update local state after successful DB update
-    setSavedOrder({ ...savedOrder, bayar, kembalian });
+    setSavedOrder({ ...savedOrder, bayar, kembalian, paymentMethod });
     setPageState('completed');
   };
 
@@ -253,6 +256,7 @@ export default function Order() {
       total: savedOrder.total,
       bayar: savedOrder.bayar,
       kembalian: savedOrder.kembalian,
+      payment_method: savedOrder.paymentMethod || null,
       created_at: new Date().toISOString(),
     };
 
