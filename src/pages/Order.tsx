@@ -88,6 +88,7 @@ export default function Order() {
           bayar: tx.bayar,
           kembalian: tx.kembalian,
           paymentMethod: tx.payment_method,
+          status: tx.status || 'completed',
           createdAt: tx.created_at,
         }));
         setCompletedOrders(orders);
@@ -173,7 +174,7 @@ export default function Order() {
         txNumber = (count || 0) + 1;
       }
 
-      // Insert transaksi
+      // Insert transaksi with status 'pending'
       const { data: transaksiData, error: transaksiError } = await supabase
         .from('transaksi')
         .insert({
@@ -184,6 +185,7 @@ export default function Order() {
           total: total,
           bayar: 0,
           kembalian: 0,
+          status: 'pending',
         })
         .select()
         .single();
@@ -232,7 +234,7 @@ export default function Order() {
       try {
         const { error } = await supabase
           .from('transaksi')
-          .update({ bayar: bayarAmount, kembalian: kembalianAmount, payment_method: paymentMethod })
+          .update({ bayar: bayarAmount, kembalian: kembalianAmount, payment_method: paymentMethod, status: 'completed' })
           .eq('id', savedOrder.transaksiId);
 
         if (error) {
@@ -240,7 +242,7 @@ export default function Order() {
           alert('Gagal update pembayaran. Coba lagi.');
           return;
         }
-        console.log('[Payment] QRIS payment updated:', { bayar: bayarAmount, kembalian: kembalianAmount, payment_method: paymentMethod });
+        console.log('[Payment] QRIS payment updated:', { bayar: bayarAmount, kembalian: kembalianAmount, payment_method: paymentMethod, status: 'completed' });
       } catch (error) {
         console.error('Error updating payment:', error);
         alert('Gagal update pembayaran. Coba lagi.');
@@ -267,6 +269,7 @@ export default function Order() {
       bayar: bayarAmount,
       kembalian: kembalianAmount,
       paymentMethod,
+      status: 'completed',
       createdAt: new Date().toISOString(),
     };
     setCompletedOrders((prev) => [...prev, newCompletedOrder]);
@@ -290,7 +293,7 @@ export default function Order() {
       try {
         const { error } = await supabase
           .from('transaksi')
-          .update({ bayar, kembalian, payment_method: paymentMethod })
+          .update({ bayar, kembalian, payment_method: paymentMethod, status: 'completed' })
           .eq('id', savedOrder.transaksiId);
 
         if (error) {
@@ -298,7 +301,7 @@ export default function Order() {
           alert('Gagal update pembayaran. Coba lagi.');
           return;
         }
-        console.log('[Payment] Cash payment updated:', { bayar, kembalian, payment_method: paymentMethod });
+        console.log('[Payment] Cash payment updated:', { bayar, kembalian, payment_method: paymentMethod, status: 'completed' });
       } catch (error) {
         console.error('Error updating payment:', error);
         alert('Gagal update pembayaran. Coba lagi.');
@@ -320,6 +323,7 @@ export default function Order() {
       bayar,
       kembalian,
       paymentMethod,
+      status: 'completed',
       createdAt: new Date().toISOString(),
     };
     setCompletedOrders((prev) => [...prev, newCompletedOrder]);
@@ -342,6 +346,7 @@ export default function Order() {
       bayar: savedOrder.bayar,
       kembalian: savedOrder.kembalian,
       payment_method: savedOrder.paymentMethod || null,
+      status: 'completed',
       created_at: new Date().toISOString(),
     };
 
@@ -379,6 +384,43 @@ export default function Order() {
     setNamaCustomer('');
     setSavedOrder(null);
     setPageState('chat');
+  };
+
+  // Handle selecting a completed order from chat history (Selesai button)
+  const handleOrderSelect = async (order: CompletedOrder) => {
+    // If order is pending, update status to completed in database
+    if (order.status === 'pending' && !isDemoMode) {
+      try {
+        const { error } = await supabase
+          .from('transaksi')
+          .update({ status: 'completed' })
+          .eq('id', order.id);
+
+        if (error) {
+          console.error('Error updating order status:', error);
+        } else {
+          console.log('[Order] Status updated to completed:', order.id);
+          // Update local state
+          setCompletedOrders((prev) =>
+            prev.map((o) => (o.id === order.id ? { ...o, status: 'completed' } : o))
+          );
+        }
+      } catch (error) {
+        console.error('Error updating order status:', error);
+      }
+    }
+
+    setSavedOrder({
+      items: order.items,
+      nama: order.namaCustomer,
+      total: order.total,
+      txNumber: order.txNumber,
+      bayar: order.bayar,
+      kembalian: order.kembalian,
+      transaksiId: order.id,
+      paymentMethod: order.paymentMethod || undefined,
+    });
+    setPageState('completed');
   };
 
   const handleCancelOrder = () => {
@@ -482,7 +524,11 @@ export default function Order() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
         {pageState === 'chat' && (
-          <OrderChat onOrderParsed={handleOrderParsed} completedOrders={completedOrders} />
+          <OrderChat
+            onOrderParsed={handleOrderParsed}
+            completedOrders={completedOrders}
+            onOrderSelect={handleOrderSelect}
+          />
         )}
 
         {pageState === 'confirmOrder' && (

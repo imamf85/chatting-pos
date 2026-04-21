@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { parseOrder, applyMissingVarian } from '../../lib/parser';
 import { parseWithAI, convertAIResultToItems, isAIEnabled } from '../../lib/aiParser';
 import { VARIAN_OPTIONS, VARIAN_LABELS, UKURAN_OPTIONS, UKURAN_LABELS, DAGING_LABELS } from '../../lib/menu';
-import type { ParsedItem, Varian, Ukuran, OrderItem, PaymentMethod } from '../../types';
+import type { ParsedItem, Varian, Ukuran, OrderItem, PaymentMethod, OrderStatus } from '../../types';
 
 // Completed order info for chat display
 export interface CompletedOrder {
@@ -14,12 +14,14 @@ export interface CompletedOrder {
   bayar: number;
   kembalian: number;
   paymentMethod: PaymentMethod | null;
+  status: OrderStatus;
   createdAt: string;
 }
 
 interface OrderChatProps {
   onOrderParsed: (items: ParsedItem[], namaCustomer: string) => void;
   completedOrders?: CompletedOrder[];
+  onOrderSelect?: (order: CompletedOrder) => void;
 }
 
 type ChatState = 'idle' | 'waitingVarian' | 'waitingUkuran' | 'parsing';
@@ -31,7 +33,7 @@ interface Message {
   order?: CompletedOrder;
 }
 
-export default function OrderChat({ onOrderParsed, completedOrders = [] }: OrderChatProps) {
+export default function OrderChat({ onOrderParsed, completedOrders = [], onOrderSelect }: OrderChatProps) {
   const [input, setInput] = useState('');
   const [chatState, setChatState] = useState<ChatState>('idle');
   const [pendingItems, setPendingItems] = useState<ParsedItem[]>([]);
@@ -390,6 +392,20 @@ export default function OrderChat({ onOrderParsed, completedOrders = [] }: Order
                         {formatRupiah(msg.order.total)}
                       </span>
                     </div>
+
+                    {/* Selesai Button */}
+                    {onOrderSelect && (
+                      <button
+                        onClick={() => onOrderSelect(msg.order!)}
+                        className={`mt-3 w-full py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-95 ${
+                          msg.order.paymentMethod === 'qris'
+                            ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50'
+                            : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
+                        }`}
+                      >
+                        Selesai
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

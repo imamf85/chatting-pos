@@ -6,6 +6,7 @@ export type Ukuran = 'small' | 'reguler' | 'jumbo';
 export type Kepedasan = 'tidak pedas' | 'sedang' | 'pedas';
 export type Role = 'owner' | 'karyawan';
 export type PaymentMethod = 'qris' | 'cash';
+export type OrderStatus = 'pending' | 'completed' | 'cancelled';
 
 export interface Lapak {
   id: string;
@@ -49,6 +50,7 @@ export interface Transaksi {
   bayar: number;
   kembalian: number;
   payment_method: PaymentMethod | null;
+  status: OrderStatus;
   created_at: string;
 }
 
