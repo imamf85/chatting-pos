@@ -169,25 +169,37 @@ export default function Order() {
     if (!savedOrder) return;
 
     // QRIS: bayar = total, kembalian = 0
-    const updatedOrder = {
-      ...savedOrder,
-      bayar: savedOrder.total,
-      kembalian: 0,
-      paymentMethod: 'qris' as PaymentMethod
-    };
-    setSavedOrder(updatedOrder);
+    const bayarAmount = savedOrder.total;
+    const kembalianAmount = 0;
 
-    // Update database if not demo mode
+    // Update database FIRST if not demo mode
     if (!isDemoMode && savedOrder.transaksiId) {
       try {
-        await supabase
+        const { error } = await supabase
           .from('transaksi')
-          .update({ bayar: savedOrder.total, kembalian: 0 })
+          .update({ bayar: bayarAmount, kembalian: kembalianAmount })
           .eq('id', savedOrder.transaksiId);
+
+        if (error) {
+          console.error('Error updating QRIS payment:', error);
+          alert('Gagal update pembayaran. Coba lagi.');
+          return;
+        }
+        console.log('[Payment] QRIS payment updated:', { bayar: bayarAmount, kembalian: kembalianAmount });
       } catch (error) {
         console.error('Error updating payment:', error);
+        alert('Gagal update pembayaran. Coba lagi.');
+        return;
       }
     }
+
+    // Update local state after successful DB update
+    setSavedOrder({
+      ...savedOrder,
+      bayar: bayarAmount,
+      kembalian: kembalianAmount,
+      paymentMethod: 'qris' as PaymentMethod
+    });
 
     setPageState('completed');
   };
@@ -201,18 +213,28 @@ export default function Order() {
   const handlePaymentComplete = async (bayar: number, kembalian: number) => {
     if (!savedOrder) return;
 
-    // Update database if not demo mode
+    // Update database FIRST if not demo mode
     if (!isDemoMode && savedOrder.transaksiId) {
       try {
-        await supabase
+        const { error } = await supabase
           .from('transaksi')
           .update({ bayar, kembalian })
           .eq('id', savedOrder.transaksiId);
+
+        if (error) {
+          console.error('Error updating cash payment:', error);
+          alert('Gagal update pembayaran. Coba lagi.');
+          return;
+        }
+        console.log('[Payment] Cash payment updated:', { bayar, kembalian });
       } catch (error) {
         console.error('Error updating payment:', error);
+        alert('Gagal update pembayaran. Coba lagi.');
+        return;
       }
     }
 
+    // Update local state after successful DB update
     setSavedOrder({ ...savedOrder, bayar, kembalian });
     setPageState('completed');
   };
